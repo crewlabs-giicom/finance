@@ -1,272 +1,274 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import { sql } from 'drizzle-orm'
+import { mysqlTable, varchar, text, int, double, boolean, timestamp, uniqueIndex } from 'drizzle-orm/mysql-core'
+
+// Panjang kolom kunci: id/FK pakai 64, karena genId() menghasilkan string pendek (prefix + base36 + hex).
+const ID = { length: 64 } as const
 
 // ---------- Auth ----------
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  role: text('role').notNull().default('staff'), // 'admin' | 'staff'
-  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`)
+export const users = mysqlTable('users', {
+  id: varchar('id', ID).primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  role: varchar('role', { length: 32 }).notNull().default('staff'), // 'admin' | 'staff'
+  createdAt: timestamp('created_at').notNull().defaultNow()
 })
 
 // ---------- Master Data: Grup PT/Rekening (dipakai bareng banyak menu) ----------
-export const bankGroups = sqliteTable('bank_groups', {
-  id: text('id').primaryKey(),
-  nama: text('nama').notNull(),
-  warna: text('warna').default('#6C5CE7')
+export const bankGroups = mysqlTable('bank_groups', {
+  id: varchar('id', ID).primaryKey(),
+  nama: varchar('nama', { length: 255 }).notNull(),
+  warna: varchar('warna', { length: 32 }).default('#6C5CE7')
 })
 
-export const bankAccounts = sqliteTable('bank_accounts', {
-  id: text('id').primaryKey(),
-  groupId: text('group_id').references(() => bankGroups.id),
-  bankType: text('bank_type').notNull(), // 'BCA' | 'BRI' | ...
-  namaRek: text('nama_rek').notNull(),
-  noRek: text('no_rek').notNull(),
-  saldo: real('saldo').notNull().default(0)
+export const bankAccounts = mysqlTable('bank_accounts', {
+  id: varchar('id', ID).primaryKey(),
+  groupId: varchar('group_id', ID).references(() => bankGroups.id),
+  bankType: varchar('bank_type', { length: 32 }).notNull(), // 'BCA' | 'BRI' | ...
+  namaRek: varchar('nama_rek', { length: 255 }).notNull(),
+  noRek: varchar('no_rek', { length: 64 }).notNull(),
+  saldo: double('saldo').notNull().default(0)
 })
 
 // ---------- Rekap Saldo: Saldo Rekening Bank (mirrors original app's `bank[]` array) ----------
-export const bankBalances = sqliteTable('bank_balances', {
-  id: text('id').primaryKey(),
-  pic: text('pic').default(''),
-  rek: text('rek').notNull().default(''),
-  saldo: real('saldo').notNull().default(0),
-  bisaDipakai: real('bisa_dipakai'),
-  ket: text('ket').default(''),
-  grup: text('grup').references(() => bankGroups.id) // FK to bank_groups.id (nullable = "Tanpa Grup")
+export const bankBalances = mysqlTable('bank_balances', {
+  id: varchar('id', ID).primaryKey(),
+  pic: varchar('pic', { length: 255 }).default(''),
+  rek: varchar('rek', { length: 255 }).notNull().default(''),
+  saldo: double('saldo').notNull().default(0),
+  bisaDipakai: double('bisa_dipakai'),
+  ket: varchar('ket', { length: 500 }).default(''),
+  grup: varchar('grup', ID).references(() => bankGroups.id) // FK to bank_groups.id (nullable = "Tanpa Grup")
 })
 
 // ---------- Rincian Bank ----------
-export const bankTxns = sqliteTable('bank_txns', {
-  id: text('id').primaryKey(),
-  accountId: text('account_id').notNull().references(() => bankAccounts.id),
-  tanggal: text('tanggal').notNull(), // ISO YYYY-MM-DD
-  transaksi: text('transaksi').notNull().default(''),
-  cabang: text('cabang').default(''),
-  debet: real('debet').notNull().default(0),
-  kredit: real('kredit').notNull().default(0),
-  saldo: real('saldo').notNull().default(0),
-  bankType: text('bank_type').default(''),
-  noBankManual: text('no_bank_manual').default(''),
-  ketTransaksiManual: text('ket_transaksi_manual').default(''),
-  tag: text('tag').default(''),
-  noteManual: text('note_manual').default(''),
-  checked: integer('checked', { mode: 'boolean' }).notNull().default(false),
-  manual: integer('manual', { mode: 'boolean' }).notNull().default(false)
+export const bankTxns = mysqlTable('bank_txns', {
+  id: varchar('id', ID).primaryKey(),
+  accountId: varchar('account_id', ID).notNull().references(() => bankAccounts.id),
+  tanggal: varchar('tanggal', { length: 10 }).notNull(), // ISO YYYY-MM-DD
+  transaksi: text('transaksi').notNull(),
+  cabang: varchar('cabang', { length: 255 }).default(''),
+  debet: double('debet').notNull().default(0),
+  kredit: double('kredit').notNull().default(0),
+  saldo: double('saldo').notNull().default(0),
+  bankType: varchar('bank_type', { length: 32 }).default(''),
+  noBankManual: varchar('no_bank_manual', { length: 255 }).default(''),
+  ketTransaksiManual: text('ket_transaksi_manual'),
+  tag: varchar('tag', { length: 255 }).default(''),
+  noteManual: text('note_manual'),
+  checked: boolean('checked').notNull().default(false),
+  manual: boolean('manual').notNull().default(false)
 })
 
 // ---------- Rincian MP (marketplace toko per grup) ----------
-export const mpStores = sqliteTable('mp_stores', {
-  id: text('id').primaryKey(),
-  groupId: text('group_id').references(() => bankGroups.id),
-  nama: text('nama').notNull(),
-  platform: text('platform').default(''),
-  saldoAwal: real('saldo_awal').notNull().default(0)
+export const mpStores = mysqlTable('mp_stores', {
+  id: varchar('id', ID).primaryKey(),
+  groupId: varchar('group_id', ID).references(() => bankGroups.id),
+  nama: varchar('nama', { length: 255 }).notNull(),
+  platform: varchar('platform', { length: 64 }).default(''),
+  saldoAwal: double('saldo_awal').notNull().default(0)
 })
 
 // One row per (store, tanggal) — mirrors the original app's mpRows[].vals[storeId] = {d, k}
-export const mpEntries = sqliteTable('mp_entries', {
-  id: text('id').primaryKey(),
-  storeId: text('store_id').notNull().references(() => mpStores.id),
-  tanggal: text('tanggal').notNull(),
-  debet: real('debet').notNull().default(0),
-  kredit: real('kredit').notNull().default(0)
+export const mpEntries = mysqlTable('mp_entries', {
+  id: varchar('id', ID).primaryKey(),
+  storeId: varchar('store_id', ID).notNull().references(() => mpStores.id),
+  tanggal: varchar('tanggal', { length: 10 }).notNull(),
+  debet: double('debet').notNull().default(0),
+  kredit: double('kredit').notNull().default(0)
 }, (t) => ({
   storeDateIdx: uniqueIndex('mp_entries_store_date_idx').on(t.storeId, t.tanggal)
 }))
 
 // ---------- List Pajak ----------
-export const npwpMaster = sqliteTable('npwp_master', {
-  id: text('id').primaryKey(),
-  noNpwp: text('no_npwp').notNull(),
-  namaNpwp: text('nama_npwp').notNull(),
-  nik: text('nik').default(''),
-  alamat: text('alamat').default('')
+export const npwpMaster = mysqlTable('npwp_master', {
+  id: varchar('id', ID).primaryKey(),
+  noNpwp: varchar('no_npwp', { length: 64 }).notNull(),
+  namaNpwp: varchar('nama_npwp', { length: 255 }).notNull(),
+  nik: varchar('nik', { length: 64 }).default(''),
+  alamat: varchar('alamat', { length: 500 }).default('')
 })
 
-export const ppnRows = sqliteTable('ppn_rows', {
-  id: text('id').primaryKey(),
-  sourceTxnId: text('source_txn_id').references(() => bankTxns.id),
-  groupId: text('group_id').references(() => bankGroups.id),
-  tanggal: text('tanggal').notNull(),
-  code: text('code').default(''),
-  store: text('store').default(''),
-  description: text('description').default(''),
-  tags: text('tags').default(''),
-  debet: real('debet').notNull().default(0),
-  kredit: real('kredit').notNull().default(0),
-  note: text('note').default(''),
-  npwpId: text('npwp_id').references(() => npwpMaster.id),
-  noInvoice: text('no_invoice').default(''),
-  netDibayarkan: real('net_dibayarkan'),
-  ppn: real('ppn'),
-  dpp: real('dpp'),
-  pph23: real('pph23'),
-  pph23_4a2: real('pph23_4a2'),
-  pph21bp: real('pph21bp'),
-  lampiranFakturPajak: text('lampiran_faktur_pajak').default(''),
-  masaKredit: text('masa_kredit').default(''), // 'YYYY-MM'
-  bentukJenisBiaya: text('bentuk_jenis_biaya').default('')
+export const ppnRows = mysqlTable('ppn_rows', {
+  id: varchar('id', ID).primaryKey(),
+  sourceTxnId: varchar('source_txn_id', ID).references(() => bankTxns.id),
+  groupId: varchar('group_id', ID).references(() => bankGroups.id),
+  tanggal: varchar('tanggal', { length: 10 }).notNull(),
+  code: varchar('code', { length: 255 }).default(''),
+  store: varchar('store', { length: 255 }).default(''),
+  description: text('description'),
+  tags: varchar('tags', { length: 255 }).default(''),
+  debet: double('debet').notNull().default(0),
+  kredit: double('kredit').notNull().default(0),
+  note: text('note'),
+  npwpId: varchar('npwp_id', ID).references(() => npwpMaster.id),
+  noInvoice: varchar('no_invoice', { length: 255 }).default(''),
+  netDibayarkan: double('net_dibayarkan'),
+  ppn: double('ppn'),
+  dpp: double('dpp'),
+  pph23: double('pph23'),
+  pph23_4a2: double('pph23_4a2'),
+  pph21bp: double('pph21bp'),
+  lampiranFakturPajak: varchar('lampiran_faktur_pajak', { length: 255 }).default(''),
+  masaKredit: varchar('masa_kredit', { length: 7 }).default(''), // 'YYYY-MM'
+  bentukJenisBiaya: varchar('bentuk_jenis_biaya', { length: 255 }).default('')
 })
 
 // ---------- Entertainment ----------
-export const entRows = sqliteTable('ent_rows', {
-  id: text('id').primaryKey(),
-  sourceTxnId: text('source_txn_id').references(() => bankTxns.id),
-  groupId: text('group_id').references(() => bankGroups.id),
-  tanggal: text('tanggal').notNull(),
-  place: text('place').default(''),
-  alamat: text('alamat').default(''),
-  description: text('description').default(''),
-  jenis: text('jenis').default(''),
-  amount: real('amount').notNull().default(0),
-  clientName: text('client_name').default(''),
-  posisi: text('posisi').default(''),
-  company: text('company').default(''),
-  jenisUsaha: text('jenis_usaha').default(''),
-  note: text('note').default('')
+export const entRows = mysqlTable('ent_rows', {
+  id: varchar('id', ID).primaryKey(),
+  sourceTxnId: varchar('source_txn_id', ID).references(() => bankTxns.id),
+  groupId: varchar('group_id', ID).references(() => bankGroups.id),
+  tanggal: varchar('tanggal', { length: 10 }).notNull(),
+  place: varchar('place', { length: 255 }).default(''),
+  alamat: varchar('alamat', { length: 500 }).default(''),
+  description: text('description'),
+  jenis: varchar('jenis', { length: 255 }).default(''),
+  amount: double('amount').notNull().default(0),
+  clientName: varchar('client_name', { length: 255 }).default(''),
+  posisi: varchar('posisi', { length: 255 }).default(''),
+  company: varchar('company', { length: 255 }).default(''),
+  jenisUsaha: varchar('jenis_usaha', { length: 255 }).default(''),
+  note: text('note')
 })
 
 // ---------- Aktiva - Pasiva ----------
-export const coaMaster = sqliteTable('coa_master', {
-  id: text('id').primaryKey(),
-  noCoa: text('no_coa').notNull(),
-  namaCoa: text('nama_coa').notNull()
+export const coaMaster = mysqlTable('coa_master', {
+  id: varchar('id', ID).primaryKey(),
+  noCoa: varchar('no_coa', { length: 64 }).notNull(),
+  namaCoa: varchar('nama_coa', { length: 255 }).notNull()
 })
 
-export const avpRows = sqliteTable('avp_rows', {
-  id: text('id').primaryKey(),
-  coaId: text('coa_id').references(() => coaMaster.id),
-  groupId: text('group_id').references(() => bankGroups.id),
-  tanggal: text('tanggal').notNull(),
-  code: text('code').default(''),
-  store: text('store').default(''),
-  description: text('description').default(''),
-  tags: text('tags').default(''),
-  debet: real('debet').notNull().default(0),
-  kredit: real('kredit').notNull().default(0)
+export const avpRows = mysqlTable('avp_rows', {
+  id: varchar('id', ID).primaryKey(),
+  coaId: varchar('coa_id', ID).references(() => coaMaster.id),
+  groupId: varchar('group_id', ID).references(() => bankGroups.id),
+  tanggal: varchar('tanggal', { length: 10 }).notNull(),
+  code: varchar('code', { length: 255 }).default(''),
+  store: varchar('store', { length: 255 }).default(''),
+  description: text('description'),
+  tags: varchar('tags', { length: 255 }).default(''),
+  debet: double('debet').notNull().default(0),
+  kredit: double('kredit').notNull().default(0)
 })
 
-export const avpLawan = sqliteTable('avp_lawan', {
-  id: text('id').primaryKey(),
-  rowId: text('row_id').notNull().references(() => avpRows.id),
-  partnerId: text('partner_id').notNull().references(() => avpRows.id)
+export const avpLawan = mysqlTable('avp_lawan', {
+  id: varchar('id', ID).primaryKey(),
+  rowId: varchar('row_id', ID).notNull().references(() => avpRows.id),
+  partnerId: varchar('partner_id', ID).notNull().references(() => avpRows.id)
 })
 
 // ---------- Tagihan Ekspedisi ----------
-export const teGudangRows = sqliteTable('te_gudang_rows', {
-  id: text('id').primaryKey(),
-  tanggal: text('tanggal'),
-  namaPengirim: text('nama_pengirim').default(''),
-  namaPenerima: text('nama_penerima').default(''),
-  invGii: text('inv_gii').default(''),
-  noWaybill: text('no_waybill').notNull(),
-  biaya: real('biaya').notNull().default(0),
-  keperluan: text('keperluan').default('')
+export const teGudangRows = mysqlTable('te_gudang_rows', {
+  id: varchar('id', ID).primaryKey(),
+  tanggal: varchar('tanggal', { length: 10 }),
+  namaPengirim: varchar('nama_pengirim', { length: 255 }).default(''),
+  namaPenerima: varchar('nama_penerima', { length: 255 }).default(''),
+  invGii: varchar('inv_gii', { length: 255 }).default(''),
+  noWaybill: varchar('no_waybill', { length: 128 }).notNull(),
+  biaya: double('biaya').notNull().default(0),
+  keperluan: varchar('keperluan', { length: 500 }).default('')
 })
 
-export const teFinanceRows = sqliteTable('te_finance_rows', {
-  id: text('id').primaryKey(),
-  tanggal: text('tanggal'),
-  noWaybill: text('no_waybill').notNull(),
-  biaya: real('biaya').notNull().default(0),
-  namaPenerima: text('nama_penerima').default(''),
-  keterangan: text('keterangan').default('')
+export const teFinanceRows = mysqlTable('te_finance_rows', {
+  id: varchar('id', ID).primaryKey(),
+  tanggal: varchar('tanggal', { length: 10 }),
+  noWaybill: varchar('no_waybill', { length: 128 }).notNull(),
+  biaya: double('biaya').notNull().default(0),
+  namaPenerima: varchar('nama_penerima', { length: 255 }).default(''),
+  keterangan: varchar('keterangan', { length: 500 }).default('')
 })
 
 // ---------- Aset ----------
-export const asetSimpleMaster = sqliteTable('aset_simple_master', {
-  id: text('id').primaryKey(),
-  kind: text('kind').notNull(), // 'tipe' | 'kategori' | 'div'
-  value: text('value').notNull()
+export const asetSimpleMaster = mysqlTable('aset_simple_master', {
+  id: varchar('id', ID).primaryKey(),
+  kind: varchar('kind', { length: 32 }).notNull(), // 'tipe' | 'kategori' | 'div'
+  value: varchar('value', { length: 255 }).notNull()
 })
 
-export const asetRows = sqliteTable('aset_rows', {
-  id: text('id').primaryKey(),
-  tipe: text('tipe').default(''),
-  kategori: text('kategori').default(''),
-  grupId: text('grup_id').references(() => bankGroups.id),
-  div: text('div').default(''),
-  nama: text('nama').notNull(),
-  deposit: real('deposit').notNull().default(0),
-  bankAccountId: text('bank_account_id').references(() => bankAccounts.id),
-  tglMulai: text('tgl_mulai'),
-  noAset: text('no_aset').default(''),
-  keterangan: text('keterangan').default(''),
-  umurEkonomis: real('umur_ekonomis').notNull().default(0),
-  hargaPerolehan: real('harga_perolehan').notNull().default(0)
+export const asetRows = mysqlTable('aset_rows', {
+  id: varchar('id', ID).primaryKey(),
+  tipe: varchar('tipe', { length: 255 }).default(''),
+  kategori: varchar('kategori', { length: 255 }).default(''),
+  grupId: varchar('grup_id', ID).references(() => bankGroups.id),
+  div: varchar('div', { length: 255 }).default(''),
+  nama: varchar('nama', { length: 255 }).notNull(),
+  deposit: double('deposit').notNull().default(0),
+  bankAccountId: varchar('bank_account_id', ID).references(() => bankAccounts.id),
+  tglMulai: varchar('tgl_mulai', { length: 10 }),
+  noAset: varchar('no_aset', { length: 255 }).default(''),
+  keterangan: varchar('keterangan', { length: 500 }).default(''),
+  umurEkonomis: double('umur_ekonomis').notNull().default(0),
+  hargaPerolehan: double('harga_perolehan').notNull().default(0)
 })
 
-export const asetDepresiasiLog = sqliteTable('aset_depresiasi_log', {
-  id: text('id').primaryKey(),
-  asetId: text('aset_id').notNull().references(() => asetRows.id),
-  periode: text('periode').notNull(), // 'YYYY-MM'
-  tanggal: text('tanggal').notNull()
+export const asetDepresiasiLog = mysqlTable('aset_depresiasi_log', {
+  id: varchar('id', ID).primaryKey(),
+  asetId: varchar('aset_id', ID).notNull().references(() => asetRows.id),
+  periode: varchar('periode', { length: 7 }).notNull(), // 'YYYY-MM'
+  tanggal: varchar('tanggal', { length: 10 }).notNull()
 })
 
 // ---------- Daftar Norminatif (stub, dilengkapi di fase berikutnya) ----------
-export const dnRows = sqliteTable('dn_rows', {
-  id: text('id').primaryKey(),
-  tanggal: text('tanggal'),
-  description: text('description').default(''),
-  amount: real('amount').notNull().default(0),
-  npwpId: text('npwp_id').references(() => npwpMaster.id)
+export const dnRows = mysqlTable('dn_rows', {
+  id: varchar('id', ID).primaryKey(),
+  tanggal: varchar('tanggal', { length: 10 }),
+  description: text('description'),
+  amount: double('amount').notNull().default(0),
+  npwpId: varchar('npwp_id', ID).references(() => npwpMaster.id)
 })
 
 // ---------- Tag master (Rincian Bank <-> List Pajak/Entertainment) ----------
-export const tagMaster = sqliteTable('tag_master', {
-  id: text('id').primaryKey(),
-  nama: text('nama').notNull().unique()
+export const tagMaster = mysqlTable('tag_master', {
+  id: varchar('id', ID).primaryKey(),
+  nama: varchar('nama', { length: 191 }).notNull().unique()
 })
 
 // ---------- Row colors (klik kanan warnain baris) ----------
-export const rowColors = sqliteTable('row_colors', {
-  id: text('id').primaryKey(),
-  entityKind: text('entity_kind').notNull(), // 'bank' | 'deposito' | 'hutang' | 'bayar' | 'rbtxn' | 'ppn' | 'ent' | 'avp'
-  entityId: text('entity_id').notNull(),
-  color: text('color').notNull()
+export const rowColors = mysqlTable('row_colors', {
+  id: varchar('id', ID).primaryKey(),
+  entityKind: varchar('entity_kind', { length: 32 }).notNull(), // 'bank' | 'deposito' | 'hutang' | 'bayar' | 'rbtxn' | 'ppn' | 'ent' | 'avp'
+  entityId: varchar('entity_id', { length: 128 }).notNull(),
+  color: varchar('color', { length: 32 }).notNull()
 }, (t) => ({
   uniqEntity: uniqueIndex('row_colors_entity_unique').on(t.entityKind, t.entityId)
 }))
 
 // ---------- Period Lock (single row config) ----------
-export const periodLock = sqliteTable('period_lock', {
-  id: integer('id').primaryKey({ autoIncrement: false }).default(1),
-  lockYm: text('lock_ym') // 'YYYY-MM' | null
+export const periodLock = mysqlTable('period_lock', {
+  id: int('id').primaryKey().default(1),
+  lockYm: varchar('lock_ym', { length: 7 }) // 'YYYY-MM' | null
 })
 
 // ---------- Rekap Saldo: Deposito / Hutang / Bayar panels ----------
-export const depositoRows = sqliteTable('deposito_rows', {
-  id: text('id').primaryKey(),
-  nama: text('nama').default(''),
-  nominal: real('nominal').notNull().default(0),
-  tglMasuk: text('tgl_masuk'),
-  rate: text('rate').default(''),
-  jatuhTempo: text('jatuh_tempo'),
-  ket: text('ket').default('')
+export const depositoRows = mysqlTable('deposito_rows', {
+  id: varchar('id', ID).primaryKey(),
+  nama: varchar('nama', { length: 255 }).default(''),
+  nominal: double('nominal').notNull().default(0),
+  tglMasuk: varchar('tgl_masuk', { length: 10 }),
+  rate: varchar('rate', { length: 64 }).default(''),
+  jatuhTempo: varchar('jatuh_tempo', { length: 10 }),
+  ket: varchar('ket', { length: 500 }).default('')
 })
 
-export const hutangRows = sqliteTable('hutang_rows', {
-  id: text('id').primaryKey(),
-  peminjam: text('peminjam').default(''),
-  kreditur: text('kreditur').default(''),
-  nominal: real('nominal').notNull().default(0),
-  rate: text('rate').default(''),
-  tglPinjam: text('tgl_pinjam'),
-  jatuhTempo: text('jatuh_tempo'),
-  ket: text('ket').default('')
+export const hutangRows = mysqlTable('hutang_rows', {
+  id: varchar('id', ID).primaryKey(),
+  peminjam: varchar('peminjam', { length: 255 }).default(''),
+  kreditur: varchar('kreditur', { length: 255 }).default(''),
+  nominal: double('nominal').notNull().default(0),
+  rate: varchar('rate', { length: 64 }).default(''),
+  tglPinjam: varchar('tgl_pinjam', { length: 10 }),
+  jatuhTempo: varchar('jatuh_tempo', { length: 10 }),
+  ket: varchar('ket', { length: 500 }).default('')
 })
 
-export const bayarRows = sqliteTable('bayar_rows', {
-  id: text('id').primaryKey(),
-  pt: text('pt').default(''),
-  nominal: real('nominal').notNull().default(0),
-  tglBayar: text('tgl_bayar'),
-  tglPesan: text('tgl_pesan'),
-  noCtr: text('no_ctr').default(''),
-  payIam: text('pay_iam').default(''),
-  payEkspds: text('pay_ekspds').default(''),
-  ket: text('ket').default('')
+export const bayarRows = mysqlTable('bayar_rows', {
+  id: varchar('id', ID).primaryKey(),
+  pt: varchar('pt', { length: 255 }).default(''),
+  nominal: double('nominal').notNull().default(0),
+  tglBayar: varchar('tgl_bayar', { length: 10 }),
+  tglPesan: varchar('tgl_pesan', { length: 10 }),
+  noCtr: varchar('no_ctr', { length: 255 }).default(''),
+  payIam: varchar('pay_iam', { length: 255 }).default(''),
+  payEkspds: varchar('pay_ekspds', { length: 255 }).default(''),
+  ket: varchar('ket', { length: 500 }).default('')
 })

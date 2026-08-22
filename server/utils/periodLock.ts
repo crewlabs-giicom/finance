@@ -1,7 +1,7 @@
 import { periodLock } from '../database/schema'
 
 export async function getPeriodLockYm(): Promise<string | null> {
-  const row = await db.select().from(periodLock).get()
+  const [row] = await db.select().from(periodLock).limit(1)
   return row?.lockYm || null
 }
 

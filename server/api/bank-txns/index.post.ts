@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!tanggal) throw createError({ statusCode: 400, statusMessage: 'Isi tanggal transaksi dulu.' })
   await assertNotLocked(tanggal)
 
-  const acc = await db.select().from(bankAccounts).where(eq(bankAccounts.id, accountId)).get()
+  const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, accountId)).limit(1)
   if (!acc) throw createError({ statusCode: 404, statusMessage: 'Rekening gak ketemu.' })
 
   const id = genId('bt')

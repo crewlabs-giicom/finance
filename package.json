@@ -10,9 +10,9 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
+    "mysql2": "^3.23.4",
     "nuxt": "^4.5.2",
     "nuxt-auth-utils": "^0.5.30",
     "vue": "^3.5.41",

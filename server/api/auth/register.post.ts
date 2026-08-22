@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   if (!email || !email.includes('@')) throw createError({ statusCode: 400, statusMessage: 'Email gak valid.' })
   if (password.length < 6) throw createError({ statusCode: 400, statusMessage: 'Password minimal 6 karakter.' })
 
-  const existing = await db.select().from(users).where(eq(users.email, email)).get()
+  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1)
   if (existing) throw createError({ statusCode: 409, statusMessage: 'Email ini udah kedaftar.' })
 
   const [{ total }] = await db.select({ total: count() }).from(users)

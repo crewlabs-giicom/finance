@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
 
   if (!email || !password) throw createError({ statusCode: 400, statusMessage: 'Email dan password wajib diisi.' })
 
-  const user = await db.select().from(users).where(eq(users.email, email)).get()
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
   if (!user) throw createError({ statusCode: 401, statusMessage: 'Email atau password salah.' })
 
   const valid = await verifyPassword(user.passwordHash, password)
