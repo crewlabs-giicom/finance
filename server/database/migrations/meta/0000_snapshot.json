@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "0df90304-f15d-4a31-9341-436abe8d29cd",
+  "id": "1427a614-e927-42db-a649-045d8370b0a0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "aset_depresiasi_log": {
@@ -466,13 +466,12 @@
           "notNull": true,
           "autoincrement": false
         },
-        "saldo": {
-          "name": "saldo",
+        "saldo_awal": {
+          "name": "saldo_awal",
           "type": "double",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},

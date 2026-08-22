@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   const body = await readBody(event)
   const patch: Record<string, any> = {}
-  if (body.saldo !== undefined) patch.saldo = Number(body.saldo) || 0
+  if (body.saldoAwal !== undefined) patch.saldoAwal = body.saldoAwal === '' || body.saldoAwal === null ? null : (Number(body.saldoAwal) || 0)
   if (body.namaRek !== undefined) patch.namaRek = String(body.namaRek)
   if (body.noRek !== undefined) patch.noRek = String(body.noRek)
   if (body.groupId !== undefined) patch.groupId = body.groupId || null

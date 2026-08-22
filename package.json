@@ -7,15 +7,20 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:import": "node scripts/migrate-from-backup.mjs"
   },
   "dependencies": {
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
+    "html2canvas": "^1.4.1",
     "mysql2": "^3.23.4",
     "nuxt": "^4.5.2",
     "nuxt-auth-utils": "^0.5.30",
     "vue": "^3.5.41",
-    "vue-router": "^5.2.0"
+    "vue-router": "^5.2.0",
+    "xlsx": "^0.18.5"
   }
 }

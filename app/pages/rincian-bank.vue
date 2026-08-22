@@ -1,5 +1,7 @@
 <script setup lang="ts">
-type Account = { id: string; groupId: string | null; bankType: string; namaRek: string; noRek: string; saldo: number }
+
+const api = useApi()
+type Account = { id: string; groupId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Txn = {
   id: string; accountId: string; tanggal: string; transaksi: string; cabang: string | null;
   debet: number; kredit: number; saldo: number; bankType: string | null;
@@ -20,10 +22,10 @@ const filterYear = ref(today.getFullYear())
 
 async function loadAll() {
   ;[accounts.value, txns.value, tags.value, rowColors.value] = await Promise.all([
-    $fetch('/api/master/accounts'),
-    $fetch('/api/bank-txns'),
-    $fetch('/api/master/tags'),
-    $fetch('/api/row-colors')
+    api('/api/master/accounts'),
+    api('/api/bank-txns'),
+    api('/api/master/tags'),
+    api('/api/row-colors')
   ])
 }
 await loadAll()
@@ -50,7 +52,7 @@ async function addTxn(accId: string) {
   const f = formFor(accId)
   if (!f.tanggal) { alert('Isi tanggal transaksi dulu.'); return }
   try {
-    await $fetch('/api/bank-txns', {
+    await api('/api/bank-txns', {
       method: 'POST',
       body: { accountId: accId, tanggal: f.tanggal, transaksi: f.transaksi, cabang: f.cabang, debet: Number(f.debet) || 0, kredit: Number(f.kredit) || 0 }
     })
@@ -64,7 +66,7 @@ async function addTxn(accId: string) {
 async function deleteTxn(id: string) {
   if (!confirm('Hapus transaksi ini?')) return
   try {
-    await $fetch(`/api/bank-txns/${id}`, { method: 'DELETE' })
+    await api(`/api/bank-txns/${id}`, { method: 'DELETE' })
     await loadAll()
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal hapus transaksi.')
@@ -73,7 +75,7 @@ async function deleteTxn(id: string) {
 
 async function patchTxn(t: Txn, field: string, value: any) {
   try {
-    await $fetch(`/api/bank-txns/${t.id}`, { method: 'PATCH', body: { [field]: value } })
+    await api(`/api/bank-txns/${t.id}`, { method: 'PATCH', body: { [field]: value } })
     ;(t as any)[field] = value
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal update.')
@@ -83,7 +85,7 @@ async function patchTxn(t: Txn, field: string, value: any) {
 
 async function duplicateTxn(id: string) {
   try {
-    await $fetch(`/api/bank-txns/${id}/duplicate`, { method: 'POST' })
+    await api(`/api/bank-txns/${id}/duplicate`, { method: 'POST' })
     await loadAll()
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal duplicate.')
@@ -104,9 +106,9 @@ function openColorMenu(evt: MouseEvent, id: string) {
 function closeColorMenu() { colorMenu.visible = false }
 async function pickColor(color: string) {
   if (!color) {
-    await $fetch(`/api/row-colors?entityKind=rbtxn&entityId=${colorMenu.targetId}`, { method: 'DELETE' })
+    await api(`/api/row-colors?entityKind=rbtxn&entityId=${colorMenu.targetId}`, { method: 'DELETE' })
   } else {
-    await $fetch('/api/row-colors', { method: 'PUT', body: { entityKind: 'rbtxn', entityId: colorMenu.targetId, color } })
+    await api('/api/row-colors', { method: 'PUT', body: { entityKind: 'rbtxn', entityId: colorMenu.targetId, color } })
   }
   await loadAll()
   closeColorMenu()
@@ -118,15 +120,79 @@ function toggleExpand(id: string) {
 }
 
 const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+
+// -- import CSV mutasi bank --
+// Parsing & dedup dikerjakan di server (server/api/bank-txns/import-csv.post.ts),
+// halaman ini cuma mengirim isi file mentahnya.
+const { exportTables } = useXlsx()
+const importing = ref(false)
+const importStatus = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
+
+async function onCsvUpload(evt: Event) {
+  const input = evt.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  importing.value = true
+  importStatus.value = null
+  try {
+    const csv = await file.text()
+    const res = await api<{
+      format: string; rekening: string; imported: number; duplikat: number
+      terkunci: number; rekeningTidakTerdaftar: number; tanggalTerbaru: string | null
+    }>('/api/bank-txns/import-csv', { method: 'POST', body: { csv } })
+
+    await loadAll()
+
+    // Lompat ke bulan data terbaru supaya hasil import langsung kelihatan.
+    if (res.tanggalTerbaru) {
+      filterYear.value = +res.tanggalTerbaru.slice(0, 4)
+      filterMonth.value = +res.tanggalTerbaru.slice(5, 7)
+    }
+
+    let msg = `${res.format.toUpperCase()} · ${res.rekening}: ${res.imported} transaksi baru, ${res.duplikat} duplikat dilewati`
+    if (res.terkunci) msg += `, ${res.terkunci} dilewati karena periode terkunci`
+    if (res.rekeningTidakTerdaftar) msg += `, ${res.rekeningTidakTerdaftar} baris rekeningnya belum terdaftar`
+    importStatus.value = { type: res.imported ? 'ok' : 'err', msg: msg + '.' }
+  } catch (e: any) {
+    importStatus.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal import CSV.' }
+  } finally {
+    importing.value = false
+  }
+}
+
+const root = ref<HTMLElement | null>(null)
+async function onExport() {
+  const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
+  if (!tables.length) return
+  await exportTables(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'Rincian_Bank')
+}
 </script>
 
 <template>
-  <div @click="closeColorMenu">
+  <div ref="root" @click="closeColorMenu">
     <div class="topbar">
       <div>
         <h2>Rincian Bank</h2>
         <p>Detail mutasi transaksi per rekening bank, lengkap dengan Tag, No Bank, Ket Transaksi, dan Catatan.</p>
       </div>
+      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
+    </div>
+
+    <div class="panel no-export">
+      <div class="upload-box">
+        <span class="gm-label">Import mutasi bank:</span>
+        <label class="btn" style="cursor:pointer;">
+          {{ importing ? '⏳ Memproses…' : '📤 Upload CSV (BCA / BRI)' }}
+          <input type="file" accept=".csv,text/csv" style="display:none;" :disabled="importing" @change="onCsvUpload" />
+        </label>
+      </div>
+      <p class="hint">
+        Format BCA maupun BRI dideteksi otomatis dari isi file. Transaksi duplikat dan baris di periode terkunci dilewati,
+        lalu kolom Saldo dihitung ulang dari Saldo Awal rekening.
+      </p>
+      <StatusBox :status="importStatus" />
     </div>
 
     <div class="toolbar">
@@ -160,7 +226,7 @@ const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustu
         <table>
           <thead>
             <tr>
-              <th></th><th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
+              <th class="no-export"></th><th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
               <th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo</th>
               <th>Tag</th><th>No Bank</th><th>Ket Transaksi</th><th>Catatan</th><th></th>
             </tr>
@@ -197,7 +263,7 @@ const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustu
               <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:110px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="t.ketTransaksiManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'ketTransaksiManual', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="t.noteManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'noteManual', ($event.target as HTMLInputElement).value)" /></td>
-              <td><span class="row-del" @click="deleteTxn(t.id)">✕</span></td>
+              <td class="no-export"><span class="row-del" @click="deleteTxn(t.id)">✕</span></td>
             </tr>
           </tbody>
         </table>

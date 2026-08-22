@@ -1,4 +1,6 @@
 <script setup lang="ts">
+
+const api = useApi()
 type Group = { id: string; nama: string; warna: string | null }
 type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null }
 type Deposito = { id: string; nama: string | null; nominal: number; tglMasuk: string | null; rate: string | null; jatuhTempo: string | null; ket: string | null }
@@ -13,29 +15,44 @@ const bayar = ref<Bayar[]>([])
 
 const today = new Date().toISOString().slice(0, 10)
 
+// Screenshot & export dipakai untuk laporan harian yang dikirim ke grup.
+const { exportTables } = useXlsx()
+const { busy: capturing, capture } = useScreenshot()
+const { lockYm, label: lockLabel, refresh: refreshLock } = usePeriodLock()
+
+const report = ref<HTMLElement | null>(null)
+async function onScreenshot() {
+  if (report.value) await capture(report.value, 'Rekap_Saldo')
+}
+async function onExport() {
+  const tables = Array.from(report.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
+  if (!tables.length) return
+  await exportTables(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'Rekap_Saldo')
+}
+
 async function loadAll() {
   ;[groups.value, balances.value, deposito.value, hutang.value, bayar.value] = await Promise.all([
-    $fetch('/api/master/groups'),
-    $fetch('/api/rekap/balances'),
-    $fetch('/api/rekap/deposito'),
-    $fetch('/api/rekap/hutang'),
-    $fetch('/api/rekap/bayar')
+    api('/api/master/groups'),
+    api('/api/rekap/balances'),
+    api('/api/rekap/deposito'),
+    api('/api/rekap/hutang'),
+    api('/api/rekap/bayar')
   ])
 }
-await loadAll()
+await Promise.all([loadAll(), refreshLock()])
 
 async function addRow(kind: 'deposito' | 'hutang' | 'bayar') {
-  await $fetch(`/api/rekap/${kind}`, { method: 'POST' })
+  await api(`/api/rekap/${kind}`, { method: 'POST' })
   await loadAll()
 }
 async function deleteRow(kind: 'deposito' | 'hutang' | 'bayar', id: string) {
   if (!confirm('Hapus baris ini?')) return
-  await $fetch(`/api/rekap/${kind}/${id}`, { method: 'DELETE' })
+  await api(`/api/rekap/${kind}/${id}`, { method: 'DELETE' })
   await loadAll()
 }
 async function patchRow(kind: 'deposito' | 'hutang' | 'bayar', row: any, field: string, value: any) {
   try {
-    await $fetch(`/api/rekap/${kind}/${row.id}`, { method: 'PATCH', body: { [field]: value } })
+    await api(`/api/rekap/${kind}/${row.id}`, { method: 'PATCH', body: { [field]: value } })
     row[field] = value
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal update.')
@@ -62,13 +79,13 @@ const grandTotal = computed(() => subtotal(balances.value))
 
 async function resetSaldo() {
   if (!confirm('Nge-nol-in kolom Saldo semua rekening bank? Kolom "Bisa Dipakai" dan lainnya tidak berubah. Biasanya dilakuin tiap pagi sebelum update data baru.')) return
-  await $fetch('/api/rekap/reset-saldo', { method: 'POST' })
+  await api('/api/rekap/reset-saldo', { method: 'POST' })
   await loadAll()
 }
 
 async function patchBalance(b: Balance, field: string, value: any) {
   try {
-    await $fetch(`/api/rekap/balances/${b.id}`, { method: 'PATCH', body: { [field]: value } })
+    await api(`/api/rekap/balances/${b.id}`, { method: 'PATCH', body: { [field]: value } })
     ;(b as any)[field] = value
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal update.')
@@ -83,14 +100,14 @@ function numFromInput(ev: Event) {
 const newRow = reactive({ pic: '', rek: '' })
 async function addBalance() {
   if (!newRow.rek) { alert('Isi nama rekening dulu.'); return }
-  await $fetch('/api/rekap/balances', { method: 'POST', body: { pic: newRow.pic, rek: newRow.rek, saldo: 0, bisaDipakai: 0, ket: '', grup: null } })
+  await api('/api/rekap/balances', { method: 'POST', body: { pic: newRow.pic, rek: newRow.rek, saldo: 0, bisaDipakai: 0, ket: '', grup: null } })
   newRow.pic = ''
   newRow.rek = ''
   await loadAll()
 }
 async function deleteBalance(id: string) {
   if (!confirm('Hapus baris rekening ini?')) return
-  await $fetch(`/api/rekap/balances/${id}`, { method: 'DELETE' })
+  await api(`/api/rekap/balances/${id}`, { method: 'DELETE' })
   await loadAll()
 }
 
@@ -98,12 +115,22 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
 </script>
 
 <template>
-  <div>
+  <div ref="report">
     <div class="topbar">
       <div>
         <h2>Rekap Saldo</h2>
-        <p>Ringkasan saldo semua rekening bank per grup.</p>
+        <p>Ringkasan saldo semua rekening bank per grup, plus panel Deposito, Hutang, dan Bayar.</p>
       </div>
+      <div style="display:flex;gap:8px;" class="no-export">
+        <button class="btn secondary" @click="onExport">📥 Export Excel</button>
+        <button class="btn secondary" :disabled="capturing" @click="onScreenshot">
+          {{ capturing ? '⏳ Memproses…' : '📸 Screenshot' }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="lockYm" class="lock-banner no-export">
+      🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong> — data di bulan itu ke bawah tidak bisa diubah.
     </div>
 
     <div class="panel">
@@ -123,7 +150,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       <div v-for="g in groupsWithBalances" :key="g.id" style="margin-bottom:18px;">
         <div style="font-weight:700;margin-bottom:6px;border-left:4px solid var(--accent);padding-left:8px;">{{ g.nama }}</div>
         <div class="table-wrap">
-          <table>
+          <table :data-sheet="g.nama">
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in balancesForGroup(g.id)" :key="b.id" :style="g.warna ? `background:${g.warna}` : ''">
@@ -154,7 +181,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       <div v-if="noGroupBalances.length">
         <div style="font-weight:700;margin-bottom:6px;border-left:4px solid #ccc;padding-left:8px;">Tanpa Grup</div>
         <div class="table-wrap">
-          <table>
+          <table data-sheet="Tanpa Grup">
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in noGroupBalances" :key="b.id">
@@ -183,7 +210,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
 
       <div class="table-wrap" style="margin-top:6px;">
-        <table>
+        <table data-sheet="Total Bank">
           <tbody>
             <tr class="grand-total-row">
               <td style="width:280px;">TOTAL BANK</td>
@@ -206,7 +233,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total deposito: <b>Rp {{ totalDeposito.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
-        <table>
+        <table data-sheet="Deposito">
           <thead><tr><th>Nama</th><th class="num">Nominal</th><th>Tgl Masuk</th><th>Rate</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!deposito.length"><td colspan="7" class="empty-state">Belum ada data deposito.</td></tr>
@@ -231,7 +258,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total hutang: <b>Rp {{ totalHutang.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
-        <table>
+        <table data-sheet="Hutang">
           <thead><tr><th>Peminjam</th><th>Kreditur</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Pinjam</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!hutang.length"><td colspan="8" class="empty-state">Belum ada data hutang.</td></tr>
@@ -260,7 +287,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total bayar: <b>Rp {{ totalBayar.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
-        <table>
+        <table data-sheet="Bayar">
           <thead><tr><th>PT</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!bayar.length"><td colspan="9" class="empty-state">Belum ada data bayar.</td></tr>

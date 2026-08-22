@@ -57,7 +57,7 @@ CREATE TABLE `bank_accounts` (
 	`bank_type` varchar(32) NOT NULL,
 	`nama_rek` varchar(255) NOT NULL,
 	`no_rek` varchar(64) NOT NULL,
-	`saldo` double NOT NULL DEFAULT 0,
+	`saldo_awal` double,
 	CONSTRAINT `bank_accounts_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint

@@ -91,8 +91,8 @@ try {
     (data.bank || []).map(b => [b.id, b.pic || '', b.rek || '', b.saldo || 0, b.bisaDipakai ?? null, b.ket || '', b.grup || null]))
 
   // ---------- bank_accounts (Rincian Bank, dari `bankAccounts[]`) ----------
-  await insertMany('bank_accounts', ['id', 'group_id', 'bank_type', 'nama_rek', 'no_rek', 'saldo'],
-    (data.bankAccounts || []).map(a => [a.id, a.grup || null, a.bankType || '', a.namaRek || '', a.noRek || '', 0]))
+  await insertMany('bank_accounts', ['id', 'group_id', 'bank_type', 'nama_rek', 'no_rek', 'saldo_awal'],
+    (data.bankAccounts || []).map(a => [a.id, a.grup || null, a.bankType || '', a.namaRek || '', a.noRek || '', a.saldoAwal ?? null]))
 
   // ---------- bank_txns ----------
   await insertMany('bank_txns',

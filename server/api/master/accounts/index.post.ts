@@ -8,6 +8,6 @@ export default defineEventHandler(async (event) => {
   const groupId = body?.groupId || null
   if (!namaRek || !noRek) throw createError({ statusCode: 400, statusMessage: 'Nama rekening dan No. Rekening wajib diisi.' })
   const id = genId('acc')
-  await db.insert(bankAccounts).values({ id, namaRek, noRek, bankType, groupId, saldo: 0 })
-  return { id, namaRek, noRek, bankType, groupId, saldo: 0 }
+  await db.insert(bankAccounts).values({ id, namaRek, noRek, bankType, groupId, saldoAwal: null })
+  return { id, namaRek, noRek, bankType, groupId, saldoAwal: null }
 })

@@ -26,7 +26,9 @@ export const bankAccounts = mysqlTable('bank_accounts', {
   bankType: varchar('bank_type', { length: 32 }).notNull(), // 'BCA' | 'BRI' | ...
   namaRek: varchar('nama_rek', { length: 255 }).notNull(),
   noRek: varchar('no_rek', { length: 64 }).notNull(),
-  saldo: double('saldo').notNull().default(0)
+  // null = baseline belum ditentukan; diisi dari header "Saldo Awal" file CSV
+  // waktu import, atau diturunkan dari transaksi tertua yang sudah punya saldo.
+  saldoAwal: double('saldo_awal')
 })
 
 // ---------- Rekap Saldo: Saldo Rekening Bank (mirrors original app's `bank[]` array) ----------

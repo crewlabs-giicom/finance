@@ -1,97 +1,83 @@
-# Finance System — Nuxt + SQLite
+# Finance System
 
-Versi web (server-backed) dari aplikasi Rekap Saldo & Finance yang sebelumnya jalan sebagai 1 file HTML. Sekarang datanya disimpan di database SQLite di server, jadi bisa diakses online oleh banyak orang sekaligus, masing-masing pakai akun sendiri.
+Aplikasi finance internal — hasil port dari aplikasi HTML satu file (`legacy/rekap-saldo-mp_4(3).html`)
+ke Nuxt 4 + MySQL, supaya bisa dipakai banyak orang dan datanya tersimpan terpusat.
 
-## Isi Phase 1 (yang sudah jadi & bisa dipakai)
+Stack: Nuxt 4 (SSR) · Drizzle ORM · MySQL 8 · nuxt-auth-utils.
 
-- Login/register per-user (user pertama yang daftar otomatis jadi admin, sisanya staff)
-- Master Data: kelola Grup PT/Rekening, Rekening Bank (buat Rincian Bank), dan Tag
-- Rekap Saldo: Saldo Rekening Bank (per grup + total), Deposito, Hutang, Bayar
-- Rincian Bank: tambah/edit transaksi manual, kasih Tag/No Bank/Ket/Catatan, warnain baris & duplicate baris lewat klik kanan, filter per bulan
+## Modul
 
-Menu lain (List Pajak, Entertainment, Aktiva-Pasiva, Tagihan Ekspedisi, Aset, Daftar Norminatif, Kunci Periode) menyusul di fase berikutnya — tapi skema database & datanya sudah disiapkan dan di-migrate dari aplikasi lama, jadi tinggal dibikinin tampilannya.
+| Menu | Ringkasan |
+|---|---|
+| Rekap Saldo | Saldo rekening per grup + panel Deposito, Hutang, Bayar. Export Excel & screenshot laporan. |
+| Rincian MP | Grid mutasi harian per toko marketplace, saldo berjalan nyambung lintas bulan. |
+| Rincian Bank | Mutasi per rekening + import CSV BCA/BRI, tag, warna baris, duplicate. |
+| List Pajak | Data PPn; kolom PPh terisi otomatis dari Tag, plus ringkasan Masa Kredit. |
+| Entertainment | Catatan entertainment & relasi usaha, bisa ditarik dari transaksi bank. |
+| Aktiva - Pasiva | Import per COA, pencocokan pasangan debit-kredit (lawan) many-to-many. |
+| Daftar Norminatif | Tampilan turunan List Pajak untuk baris ber-Tag PPh 23 / 21 BP. |
+| Tagihan Ekspedisi | Pencocokan data Gudang vs tagihan Finance lewat No. Waybill. |
+| Aset | Daftar aset + depresiasi bulanan (idempoten per periode). |
+| Master Data | Grup, rekening, tag, NPWP, COA, master aset, dan kunci periode. |
 
-## Jalanin di komputer sendiri (development)
+## Setup lokal
 
 ```bash
+cp .env.example .env          # isi DATABASE_URL & NUXT_SESSION_PASSWORD
 npm install
-cp .env.example .env   # lalu isi NUXT_SESSION_PASSWORD dengan random string minimal 32 karakter
-npx drizzle-kit migrate
+npm run db:migrate            # buat 25 tabel
 npm run dev
 ```
 
-Buka http://localhost:3000, daftar akun pertama (otomatis jadi admin).
+Butuh **Node 20 atau 22** (bukan rilis ganjil) dan MySQL 8.
 
-## Pindahin data dari aplikasi HTML lama
+User pertama yang mendaftar di `/register` otomatis jadi admin.
 
-1. Di aplikasi HTML lama, klik tombol **Export Backup** — nanti kedownload file `backup-rekap-saldo-....json`.
-2. Pastikan database masih kosong (baru aja `npx drizzle-kit migrate`, belum ada data lain).
-3. Jalankan:
+### Import data dari aplikasi HTML lama
+
+Ekspor backup lewat tombol "Export Backup" di aplikasi lama, lalu:
+
+```bash
+npm run db:import -- legacy/backup-xxx.json
+```
+
+Tambahkan `--reset` untuk mengosongkan seluruh tabel data lebih dulu (tabel `users` tidak disentuh).
+Warna baris tidak ikut pindah — data itu memang tidak pernah masuk file backup aplikasi lama.
+
+## Deploy ke cPanel (Setup Node.js App)
+
+1. cPanel → **MySQL Databases**: buat database + user, catat kredensialnya.
+2. cPanel → **Setup Node.js App** → Create Application:
+   - Node version: 20 atau 22
+   - Application root: folder di luar `public_html`, mis. `finance-app`
+   - Application startup file: `app.js`
+3. Environment variables di panel yang sama:
+   - `DATABASE_URL` = `mysql://user:password@localhost:3306/namadb`
+   - `NUXT_SESSION_PASSWORD` = string acak minimal 32 karakter
+   - `NODE_ENV` = `production`
+4. Upload source tanpa `node_modules/` dan `.output/`, lalu di terminal cPanel
+   (setelah `source ~/nodevenv/.../activate`):
+
    ```bash
-   DATABASE_PATH=./data/finance.db node scripts/migrate-from-backup.mjs /path/ke/backup-rekap-saldo-....json
-   ```
-4. Cek hasilnya di aplikasi — semua data (Saldo Bank, Deposito, Hutang, Bayar, Rincian Bank, dan data menu-menu yang belum ada tampilannya) sudah pindah.
-
-**Catatan penting**: warna baris (hasil klik kanan → kasih warna) di aplikasi lama TIDAK ikut ke-backup (memang dari dulu gak pernah tersimpan di file export), jadi otomatis juga gak ikut pindah. Ini bukan bug di proses migrasinya — itu keterbatasan yang udah ada dari aplikasi lama.
-
-Jalankan script migrasi ini **cuma sekali** ke database yang masih kosong. Kalau perlu diulang, hapus dulu file `data/finance.db` lalu `npx drizzle-kit migrate` ulang sebelum jalanin migrasinya lagi.
-
-## Deploy ke server (production)
-
-1. Siapkan server dengan Node.js 20+.
-2. Upload/clone project ini ke server, lalu:
-   ```bash
-   npm install
-   ```
-3. Bikin file `.env` (jangan pakai punya development, generate password baru yang beneran acak untuk `NUXT_SESSION_PASSWORD`):
-   ```
-   NUXT_SESSION_PASSWORD=<random string minimal 32 karakter>
-   DATABASE_PATH=/path/absolut/ke/data/finance.db
-   ```
-4. Jalankan migrasi skema database:
-   ```bash
-   npx drizzle-kit migrate
-   ```
-5. (Opsional, sekali saja) Migrasi data dari aplikasi HTML lama — lihat bagian di atas.
-6. Build:
-   ```bash
+   npm ci
    npm run build
+   npm run db:migrate
+   npm run db:import -- legacy/backup-xxx.json   # sekali saja, kalau memigrasi data lama
    ```
-7. Jalankan servernya:
-   ```bash
-   PORT=3000 node .output/server/index.mjs
-   ```
-   Supaya tetap jalan terus (auto-restart kalau crash/server reboot), pakai process manager seperti **pm2**:
-   ```bash
-   npm install -g pm2
-   pm2 start .output/server/index.mjs --name finance-app
-   pm2 save
-   pm2 startup
-   ```
-8. Pasang reverse proxy (nginx/Caddy) di depan port 3000 supaya bisa diakses lewat domain + HTTPS. Contoh nginx:
-   ```nginx
-   server {
-     listen 80;
-     server_name finance.perusahaanmu.com;
-     location / {
-       proxy_pass http://127.0.0.1:3000;
-       proxy_http_version 1.1;
-       proxy_set_header Upgrade $http_upgrade;
-       proxy_set_header Connection 'upgrade';
-       proxy_set_header Host $host;
-     }
-   }
-   ```
-   Lalu pasang SSL gratis pakai Certbot (`certbot --nginx`).
 
-## Backup database
+5. Klik **Restart** di Setup Node.js App.
 
-File database-nya cuma 1 file: `data/finance.db` (plus `data/finance.db-wal` & `-shm` kalau ada, itu file sementara SQLite). Backup rutin cukup copy file `finance.db` itu ke tempat aman (misal cron job harian yang nyalin ke Google Drive/S3).
+Tidak ada native module di dependency, jadi `npm ci` di server tidak perlu compile lewat `node-gyp`.
 
-## Struktur teknis (buat referensi)
+## Catatan teknis
 
-- **Framework**: Nuxt 4 (Vue 3 + Nitro server, full-stack dalam 1 project)
-- **Database**: SQLite lewat Drizzle ORM (`server/database/schema.ts`)
-- **Auth**: nuxt-auth-utils (session cookie, password di-hash pakai scrypt)
-- **API**: `server/api/**` (tiap file = 1 endpoint REST)
-- **Halaman**: `app/pages/**`
+- **Kunci periode** ditegakkan di server ([server/utils/periodLock.ts](server/utils/periodLock.ts)),
+  bukan hanya di UI — berlaku untuk semua pengguna dan semua endpoint.
+- **CRUD** sepuluh modul dibangun dari satu pabrik handler
+  ([server/utils/crud.ts](server/utils/crud.ts)), dideklarasikan di
+  [server/utils/tables.ts](server/utils/tables.ts).
+- **Parsing CSV bank** dikerjakan di server ([server/utils/bankCsv.ts](server/utils/bankCsv.ts)),
+  termasuk dedup dan hitung ulang saldo berjalan.
+- **SheetJS & html2canvas** di-import dinamis dan hanya di browser, agar tidak masuk bundle SSR.
+- Nilai rupiah disimpan sebagai `double`. Rupiah selalu bilangan bulat dan mantissa 53-bit
+  jauh melampaui nominal apa pun yang dipakai di sini, jadi tidak ada pembulatan yang hilang.
