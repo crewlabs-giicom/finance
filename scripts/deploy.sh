@@ -19,7 +19,7 @@ LOG_FILE="$SRC_DIR/deploy.log"
 
 # Path file database SQLite.
 # HARUS absolute: script ini jalan dari SRC_DIR sedangkan Passenger jalan dari
-# SERVE_DIR, jadi path relatif akan menghasilkan DUA database yang berbeda.
+# SERVE_DIR, jadi path relatif hehe akan menghasilkan DUA database yang berbeda.
 # HARUS sama persis dengan DATABASE_PATH di cPanel -> Setup Node.js App ->
 # Environment variables (env panel itu tidak terbaca dari script ini).
 # Ditaruh di luar public_html supaya file DB tidak bisa diunduh lewat URL.
