@@ -5,6 +5,13 @@ ke Nuxt 4 + SQLite, supaya bisa dipakai banyak orang dan datanya tersimpan terpu
 
 Stack: Nuxt 4 (SSR) · Drizzle ORM · SQLite (better-sqlite3) · nuxt-auth-utils.
 
+## Dokumentasi
+
+| Dokumen | Untuk siapa |
+|---|---|
+| [docs/GIT-DASAR.md](docs/GIT-DASAR.md) | Yang belum terbiasa Git — pull, commit, push saja |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Yang mengurus rilis ke server |
+
 ## Modul
 
 | Menu | Ringkasan |
@@ -47,80 +54,37 @@ npm run db:import -- legacy/backup-xxx.json
 Tambahkan `--reset` untuk mengosongkan seluruh tabel data lebih dulu (tabel `users` tidak disentuh).
 Warna baris tidak ikut pindah — data itu memang tidak pernah masuk file backup aplikasi lama.
 
-## Deploy ke cPanel (sekali klik lewat Git)
+## Deploy ke cPanel
 
-Setelah setup awal, tiap rilis cukup: `git push`, lalu klik **Deploy HEAD Commit**
-di cPanel. Sisanya ([.cpanel.yml](.cpanel.yml) → [scripts/deploy.sh](scripts/deploy.sh))
-otomatis: `npm ci` → `npm run build` → `npm run db:migrate` → restart Passenger.
+Panduan lengkapnya — dari setup repo, deploy key, sampai rutinitas push harian —
+ada di **[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
-### Setup awal (sekali saja)
-
-1. cPanel → **Setup Node.js App** → Create Application:
-   - Node version: 20, 22, atau 24
-   - Application root: folder di luar `public_html`, mis. `finance-app`
-   - Application startup file: `app.js`
-
-   Ini juga yang membuat virtualenv di `~/nodevenv/finance-app/<versi>/`, yang nanti
-   dicari otomatis oleh `deploy.sh`.
-
-2. Environment variables di panel yang sama:
-   - `DATABASE_PATH` = absolute path ke file DB, mis. `/home/USER/finance-data/finance.db`
-   - `NUXT_SESSION_PASSWORD` = string acak minimal 32 karakter
-   - `NODE_ENV` = `production`
-
-3. cPanel → **Git Version Control** → Create:
-   - Clone URL: URL repo ini
-   - Repository Path: **sama persis** dengan Application Root di langkah 1
-     (jadi hasil clone langsung jadi aplikasinya, tidak perlu copy file)
-
-   Repo private butuh kunci SSH: buat di cPanel → SSH Access, lalu daftarkan
-   public key-nya sebagai Deploy Key di GitHub, dan pakai clone URL bentuk SSH.
-
-4. Buka tab **Pull or Deploy** → **Deploy HEAD Commit**. Deploy pertama paling lama
-   karena `npm ci` mengunduh semua dependency dari nol.
-
-5. Kalau memigrasi data lama, sekali saja lewat Terminal cPanel:
-
-   ```bash
-   source ~/nodevenv/finance-app/22/bin/activate
-   cd ~/finance-app
-   npm run db:import -- legacy/backup-xxx.json
-   ```
-
-### Rilis berikutnya
+Ringkasnya: source di-build di `~/js_app/finance`, hasil `.output/` disalin ke
+`~/public_html/finance` yang didaftarkan di Setup Node.js App. Sekali deploy cukup:
 
 ```bash
-git push origin master
+bash ~/js_app/finance/scripts/deploy.sh
 ```
 
-lalu di cPanel → Git Version Control → **Pull or Deploy** → **Update from Remote**
-→ **Deploy HEAD Commit**.
+Environment variables yang wajib diisi di Setup Node.js App:
 
-Log hasil deploy ada di `~/.cpanel/logs/` — cek di situ kalau ada yang gagal.
-
-Mau tanpa klik sama sekali? Tambahkan GitHub Actions yang SSH ke server lalu
-menjalankan `bash ~/finance-app/scripts/deploy.sh` — script yang sama, jadi tidak
-ada logika yang bercabang.
-
-### Kalau build kena limit hosting
-
-`nuxt build` adalah langkah paling berat di sini. Di shared hosting yang ketat,
-prosesnya bisa kena OOM-kill (deploy berhenti tanpa error jelas). `deploy.sh` sudah
-membatasi heap ke 1536 MB; kalau masih gagal, turunkan lewat env var `NODE_OPTIONS`,
-atau pindahkan build ke GitHub Actions dan kirim folder `.output/` hasil build ke
-server lewat rsync — server tinggal `npm run db:migrate` + `touch tmp/restart.txt`.
+| Variable | Nilai |
+|---|---|
+| `DATABASE_PATH` | absolute path di luar `public_html`, mis. `/home/USER/finance-data/finance.db` |
+| `NUXT_SESSION_PASSWORD` | string acak minimal 32 karakter |
+| `NODE_ENV` | `production` |
 
 ### Catatan penting soal file database
 
 - **Taruh di luar document root.** Kalau file `.db` bisa diakses lewat URL, seluruh data
-  bisa diunduh siapa saja. Selalu set `DATABASE_PATH` ke absolute path — jangan andalkan
-  default relatif, karena cwd Passenger belum tentu root aplikasi.
+  bisa diunduh siapa saja. Selalu set `DATABASE_PATH` ke absolute path — path relatif
+  akan menghasilkan dua database berbeda, karena build dan runtime jalan dari
+  working directory yang berbeda.
 - **Direktori-nya harus writable**, bukan cuma file-nya: mode WAL bikin file pendamping
   `finance.db-wal` dan `finance.db-shm` di direktori yang sama.
-- **`better-sqlite3` itu native module**, tapi paketnya sudah membawa prebuilt binary
-  (`prebuilds/linux-x64.node` dll) untuk semua platform, jadi `npm ci` di cPanel tidak
-  perlu compiler `node-gyp`. Kalau suatu saat gagal load, jalankan `npm rebuild better-sqlite3`
-  dengan versi Node yang sama seperti yang dipakai Passenger.
+- **`better-sqlite3` itu native module**, tapi prebuilt binary-nya (`linux-x64.node` dll)
+  sudah ikut ter-bundle ke dalam `.output/server/node_modules/`, jadi tidak perlu
+  compiler `node-gyp` maupun `npm install` di folder yang di-serve.
 
 ## Catatan teknis
 
