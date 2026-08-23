@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   // Tabel ini cuma punya satu baris (id = 1).
   await db.insert(periodLock).values({ id: 1, lockYm })
-    .onDuplicateKeyUpdate({ set: { lockYm } })
+    .onConflictDoUpdate({ target: periodLock.id, set: { lockYm } })
 
   return { lockYm }
 })

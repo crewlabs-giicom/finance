@@ -13,6 +13,9 @@ node_modules
 logs
 *.log
 
+# Passenger restart trigger (dibuat scripts/deploy.sh di server)
+tmp
+
 # Misc
 .DS_Store
 .fleet

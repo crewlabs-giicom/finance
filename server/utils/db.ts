@@ -1,16 +1,17 @@
-import mysql from 'mysql2/promise'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../database/schema'
 
-const url = process.env.DATABASE_URL
-if (!url) throw new Error('DATABASE_URL belum diset. Contoh: mysql://root:@127.0.0.1:3306/finance_app')
+// Di cPanel/Passenger cwd bisa berbeda dari root aplikasi — set DATABASE_PATH
+// ke absolute path di direktori yang writable dan di luar document root.
+const dbPath = process.env.DATABASE_PATH || './data/finance.db'
+mkdirSync(dirname(dbPath), { recursive: true })
 
-export const pool = mysql.createPool({
-  uri: url,
-  connectionLimit: 10,
-  // Kolom double dikembalikan sebagai number (default mysql2), bukan string —
-  // aritmetika di aplikasi tetap sama seperti waktu masih pakai SQLite `real`.
-  decimalNumbers: true
-})
+const sqlite = new Database(dbPath)
+sqlite.pragma('journal_mode = WAL')
+sqlite.pragma('foreign_keys = ON')
 
-export const db = drizzle(pool, { schema, mode: 'default' })
+export const db = drizzle(sqlite, { schema })
+export { sqlite }

@@ -9,6 +9,6 @@ export default defineEventHandler(async (event) => {
 
   await db.insert(rowColors)
     .values({ id: genId('rc'), entityKind, entityId, color })
-    .onDuplicateKeyUpdate({ set: { color } })
+    .onConflictDoUpdate({ target: [rowColors.entityKind, rowColors.entityId], set: { color } })
   return { ok: true }
 })

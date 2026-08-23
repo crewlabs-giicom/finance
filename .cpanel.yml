@@ -1,0 +1,7 @@
+---
+# Dipakai cPanel → Git Version Control → tombol "Deploy HEAD Commit".
+# Logika sebenarnya ada di scripts/deploy.sh supaya bisa pakai variabel shell
+# (tiap baris di daftar tasks ini dijalankan terpisah, variabel tidak diwariskan).
+deployment:
+  tasks:
+    - /bin/bash "$PWD/scripts/deploy.sh"

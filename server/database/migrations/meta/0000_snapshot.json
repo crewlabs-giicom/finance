@@ -1,7 +1,7 @@
 {
-  "version": "5",
-  "dialect": "mysql",
-  "id": "1427a614-e927-42db-a649-045d8370b0a0",
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "8be551f7-b34a-49dc-b7b0-a3ae6079b976",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "aset_depresiasi_log": {
@@ -9,28 +9,28 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "aset_id": {
           "name": "aset_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "periode": {
           "name": "periode",
-          "type": "varchar(7)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -52,30 +52,23 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "aset_depresiasi_log_id": {
-          "name": "aset_depresiasi_log_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "aset_rows": {
       "name": "aset_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "tipe": {
           "name": "tipe",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -83,7 +76,7 @@
         },
         "kategori": {
           "name": "kategori",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -91,14 +84,14 @@
         },
         "grup_id": {
           "name": "grup_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "div": {
           "name": "div",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -106,14 +99,14 @@
         },
         "nama": {
           "name": "nama",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "deposit": {
           "name": "deposit",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -121,21 +114,21 @@
         },
         "bank_account_id": {
           "name": "bank_account_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "tgl_mulai": {
           "name": "tgl_mulai",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "no_aset": {
           "name": "no_aset",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -143,7 +136,7 @@
         },
         "keterangan": {
           "name": "keterangan",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -151,7 +144,7 @@
         },
         "umur_ekonomis": {
           "name": "umur_ekonomis",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -159,7 +152,7 @@
         },
         "harga_perolehan": {
           "name": "harga_perolehan",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -195,37 +188,30 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "aset_rows_id": {
-          "name": "aset_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "aset_simple_master": {
       "name": "aset_simple_master",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "kind": {
           "name": "kind",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "value": {
           "name": "value",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -233,37 +219,30 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "aset_simple_master_id": {
-          "name": "aset_simple_master_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "avp_lawan": {
       "name": "avp_lawan",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "row_id": {
           "name": "row_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "partner_id": {
           "name": "partner_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -298,51 +277,44 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "avp_lawan_id": {
-          "name": "avp_lawan_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "avp_rows": {
       "name": "avp_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "coa_id": {
           "name": "coa_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "group_id": {
           "name": "group_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "code": {
           "name": "code",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -350,7 +322,7 @@
         },
         "store": {
           "name": "store",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -365,7 +337,7 @@
         },
         "tags": {
           "name": "tags",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -373,7 +345,7 @@
         },
         "debet": {
           "name": "debet",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -381,7 +353,7 @@
         },
         "kredit": {
           "name": "kredit",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -417,58 +389,51 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "avp_rows_id": {
-          "name": "avp_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "bank_accounts": {
       "name": "bank_accounts",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "group_id": {
           "name": "group_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "bank_type": {
           "name": "bank_type",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "nama_rek": {
           "name": "nama_rek",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "no_rek": {
           "name": "no_rek",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "saldo_awal": {
           "name": "saldo_awal",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -490,30 +455,23 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "bank_accounts_id": {
-          "name": "bank_accounts_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "bank_balances": {
       "name": "bank_balances",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "pic": {
           "name": "pic",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -521,7 +479,7 @@
         },
         "rek": {
           "name": "rek",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -529,7 +487,7 @@
         },
         "saldo": {
           "name": "saldo",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -537,14 +495,14 @@
         },
         "bisa_dipakai": {
           "name": "bisa_dipakai",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ket": {
           "name": "ket",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -552,7 +510,7 @@
         },
         "grup": {
           "name": "grup",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -574,37 +532,30 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "bank_balances_id": {
-          "name": "bank_balances_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "bank_groups": {
       "name": "bank_groups",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "nama": {
           "name": "nama",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "warna": {
           "name": "warna",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -613,37 +564,30 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "bank_groups_id": {
-          "name": "bank_groups_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "bank_txns": {
       "name": "bank_txns",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "account_id": {
           "name": "account_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -657,7 +601,7 @@
         },
         "cabang": {
           "name": "cabang",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -665,7 +609,7 @@
         },
         "debet": {
           "name": "debet",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -673,7 +617,7 @@
         },
         "kredit": {
           "name": "kredit",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -681,7 +625,7 @@
         },
         "saldo": {
           "name": "saldo",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -689,7 +633,7 @@
         },
         "bank_type": {
           "name": "bank_type",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -697,7 +641,7 @@
         },
         "no_bank_manual": {
           "name": "no_bank_manual",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -712,7 +656,7 @@
         },
         "tag": {
           "name": "tag",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -727,7 +671,7 @@
         },
         "checked": {
           "name": "checked",
-          "type": "boolean",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -735,7 +679,7 @@
         },
         "manual": {
           "name": "manual",
-          "type": "boolean",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -758,30 +702,23 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "bank_txns_id": {
-          "name": "bank_txns_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "bayar_rows": {
       "name": "bayar_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "pt": {
           "name": "pt",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -789,7 +726,7 @@
         },
         "nominal": {
           "name": "nominal",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -797,21 +734,21 @@
         },
         "tgl_bayar": {
           "name": "tgl_bayar",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "tgl_pesan": {
           "name": "tgl_pesan",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "no_ctr": {
           "name": "no_ctr",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -819,7 +756,7 @@
         },
         "pay_iam": {
           "name": "pay_iam",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -827,7 +764,7 @@
         },
         "pay_ekspds": {
           "name": "pay_ekspds",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -835,7 +772,7 @@
         },
         "ket": {
           "name": "ket",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -844,37 +781,30 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "bayar_rows_id": {
-          "name": "bayar_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "coa_master": {
       "name": "coa_master",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "no_coa": {
           "name": "no_coa",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "nama_coa": {
           "name": "nama_coa",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -882,30 +812,23 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "coa_master_id": {
-          "name": "coa_master_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "deposito_rows": {
       "name": "deposito_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "nama": {
           "name": "nama",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -913,7 +836,7 @@
         },
         "nominal": {
           "name": "nominal",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -921,14 +844,14 @@
         },
         "tgl_masuk": {
           "name": "tgl_masuk",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "rate": {
           "name": "rate",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -936,14 +859,14 @@
         },
         "jatuh_tempo": {
           "name": "jatuh_tempo",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ket": {
           "name": "ket",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -952,30 +875,23 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "deposito_rows_id": {
-          "name": "deposito_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "dn_rows": {
       "name": "dn_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -989,7 +905,7 @@
         },
         "amount": {
           "name": "amount",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -997,7 +913,7 @@
         },
         "npwp_id": {
           "name": "npwp_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1019,51 +935,44 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "dn_rows_id": {
-          "name": "dn_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "ent_rows": {
       "name": "ent_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "source_txn_id": {
           "name": "source_txn_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "group_id": {
           "name": "group_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "place": {
           "name": "place",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1071,7 +980,7 @@
         },
         "alamat": {
           "name": "alamat",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1086,7 +995,7 @@
         },
         "jenis": {
           "name": "jenis",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1094,7 +1003,7 @@
         },
         "amount": {
           "name": "amount",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1102,7 +1011,7 @@
         },
         "client_name": {
           "name": "client_name",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1110,7 +1019,7 @@
         },
         "posisi": {
           "name": "posisi",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1118,7 +1027,7 @@
         },
         "company": {
           "name": "company",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1126,7 +1035,7 @@
         },
         "jenis_usaha": {
           "name": "jenis_usaha",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1169,30 +1078,23 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "ent_rows_id": {
-          "name": "ent_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "hutang_rows": {
       "name": "hutang_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "peminjam": {
           "name": "peminjam",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1200,7 +1102,7 @@
         },
         "kreditur": {
           "name": "kreditur",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1208,7 +1110,7 @@
         },
         "nominal": {
           "name": "nominal",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1216,7 +1118,7 @@
         },
         "rate": {
           "name": "rate",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1224,21 +1126,21 @@
         },
         "tgl_pinjam": {
           "name": "tgl_pinjam",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "jatuh_tempo": {
           "name": "jatuh_tempo",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ket": {
           "name": "ket",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1247,44 +1149,37 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "hutang_rows_id": {
-          "name": "hutang_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "mp_entries": {
       "name": "mp_entries",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "store_id": {
           "name": "store_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "debet": {
           "name": "debet",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1292,7 +1187,7 @@
         },
         "kredit": {
           "name": "kredit",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1324,44 +1219,37 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "mp_entries_id": {
-          "name": "mp_entries_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "mp_stores": {
       "name": "mp_stores",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "group_id": {
           "name": "group_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "nama": {
           "name": "nama",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "platform": {
           "name": "platform",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1369,7 +1257,7 @@
         },
         "saldo_awal": {
           "name": "saldo_awal",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1392,44 +1280,37 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "mp_stores_id": {
-          "name": "mp_stores_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "npwp_master": {
       "name": "npwp_master",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "no_npwp": {
           "name": "no_npwp",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "nama_npwp": {
           "name": "nama_npwp",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "nik": {
           "name": "nik",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1437,7 +1318,7 @@
         },
         "alamat": {
           "name": "alamat",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1446,31 +1327,24 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "npwp_master_id": {
-          "name": "npwp_master_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "period_lock": {
       "name": "period_lock",
       "columns": {
         "id": {
           "name": "id",
-          "type": "int",
-          "primaryKey": false,
+          "type": "integer",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false,
           "default": 1
         },
         "lock_ym": {
           "name": "lock_ym",
-          "type": "varchar(7)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1478,51 +1352,44 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "period_lock_id": {
-          "name": "period_lock_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "ppn_rows": {
       "name": "ppn_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "source_txn_id": {
           "name": "source_txn_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "group_id": {
           "name": "group_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "code": {
           "name": "code",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1530,7 +1397,7 @@
         },
         "store": {
           "name": "store",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1545,7 +1412,7 @@
         },
         "tags": {
           "name": "tags",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1553,7 +1420,7 @@
         },
         "debet": {
           "name": "debet",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1561,7 +1428,7 @@
         },
         "kredit": {
           "name": "kredit",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1576,14 +1443,14 @@
         },
         "npwp_id": {
           "name": "npwp_id",
-          "type": "varchar(64)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "no_invoice": {
           "name": "no_invoice",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1591,49 +1458,49 @@
         },
         "net_dibayarkan": {
           "name": "net_dibayarkan",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "ppn": {
           "name": "ppn",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "dpp": {
           "name": "dpp",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "pph23": {
           "name": "pph23",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "pph23_4a2": {
           "name": "pph23_4a2",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "pph21bp": {
           "name": "pph21bp",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "lampiran_faktur_pajak": {
           "name": "lampiran_faktur_pajak",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1641,7 +1508,7 @@
         },
         "masa_kredit": {
           "name": "masa_kredit",
-          "type": "varchar(7)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1649,7 +1516,7 @@
         },
         "bentuk_jenis_biaya": {
           "name": "bentuk_jenis_biaya",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1698,44 +1565,37 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {
-        "ppn_rows_id": {
-          "name": "ppn_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "row_colors": {
       "name": "row_colors",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "entity_kind": {
           "name": "entity_kind",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "entity_id": {
           "name": "entity_id",
-          "type": "varchar(128)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "color": {
           "name": "color",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -1752,82 +1612,69 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "row_colors_id": {
-          "name": "row_colors_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "tag_master": {
       "name": "tag_master",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "nama": {
           "name": "nama",
-          "type": "varchar(191)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "tag_master_id": {
-          "name": "tag_master_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
+      "indexes": {
         "tag_master_nama_unique": {
           "name": "tag_master_nama_unique",
           "columns": [
             "nama"
-          ]
+          ],
+          "isUnique": true
         }
       },
-      "checkConstraint": {}
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "te_finance_rows": {
       "name": "te_finance_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "no_waybill": {
           "name": "no_waybill",
-          "type": "varchar(128)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "biaya": {
           "name": "biaya",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1835,7 +1682,7 @@
         },
         "nama_penerima": {
           "name": "nama_penerima",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1843,7 +1690,7 @@
         },
         "keterangan": {
           "name": "keterangan",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1852,37 +1699,30 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "te_finance_rows_id": {
-          "name": "te_finance_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "te_gudang_rows": {
       "name": "te_gudang_rows",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "tanggal": {
           "name": "tanggal",
-          "type": "varchar(10)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "nama_pengirim": {
           "name": "nama_pengirim",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1890,7 +1730,7 @@
         },
         "nama_penerima": {
           "name": "nama_penerima",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1898,7 +1738,7 @@
         },
         "inv_gii": {
           "name": "inv_gii",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1906,14 +1746,14 @@
         },
         "no_waybill": {
           "name": "no_waybill",
-          "type": "varchar(128)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "biaya": {
           "name": "biaya",
-          "type": "double",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1921,7 +1761,7 @@
         },
         "keperluan": {
           "name": "keperluan",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
@@ -1930,51 +1770,44 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "te_gudang_rows_id": {
-          "name": "te_gudang_rows_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraints": {}
     },
     "users": {
       "name": "users",
       "columns": {
         "id": {
           "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": false,
+          "type": "text",
+          "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
         "name": {
           "name": "name",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "email": {
           "name": "email",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "password_hash": {
           "name": "password_hash",
-          "type": "varchar(255)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "role": {
           "name": "role",
-          "type": "varchar(32)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1982,42 +1815,36 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "(now())"
+          "default": "(current_timestamp)"
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "users_id": {
-          "name": "users_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
+      "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
           "columns": [
             "email"
-          ]
+          ],
+          "isUnique": true
         }
       },
-      "checkConstraint": {}
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     }
   },
   "views": {},
+  "enums": {},
   "_meta": {
     "schemas": {},
     "tables": {},
     "columns": {}
   },
   "internal": {
-    "tables": {},
     "indexes": {}
   }
 }

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { MySqlTable } from 'drizzle-orm/mysql-core'
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 /**
  * Pabrik handler CRUD.
@@ -39,7 +39,7 @@ function coerce(kind: FieldKind, v: unknown): unknown {
 }
 
 export type CrudOptions = {
-  table: MySqlTable & { id: any }
+  table: SQLiteTable & { id: any }
   idPrefix: string
   fields: FieldSpec
   /** Field yang wajib ada isinya waktu create. */
@@ -129,7 +129,8 @@ export function defineCrud(opts: CrudOptions) {
         values.push(row)
       }
 
-      // Dipotong per 500 baris supaya tidak menabrak max_allowed_packet MySQL cPanel.
+      // Dipotong per 500 baris supaya jumlah bound parameter tetap jauh di bawah
+      // SQLITE_MAX_VARIABLE_NUMBER (32766 di build better-sqlite3).
       for (let i = 0; i < values.length; i += 500) {
         await db.insert(table).values(values.slice(i, i + 500) as any)
       }
