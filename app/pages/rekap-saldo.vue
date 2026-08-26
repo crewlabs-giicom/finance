@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { hitungBisaDipakai, parseNum } from '~/utils/format'
 
 const api = useApi()
+const { pics, load: loadPics } = usePics()
 type Group = { id: string; nama: string; warna: string | null }
-type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null }
+type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean }
 type Deposito = { id: string; nama: string | null; nominal: number; tglMasuk: string | null; rate: string | null; jatuhTempo: string | null; ket: string | null }
 type Hutang = { id: string; peminjam: string | null; kreditur: string | null; nominal: number; rate: string | null; tglPinjam: string | null; jatuhTempo: string | null; ket: string | null }
 type Bayar = { id: string; pt: string | null; nominal: number; tglBayar: string | null; tglPesan: string | null; noCtr: string | null; payIam: string | null; payEkspds: string | null; ket: string | null }
@@ -12,6 +14,9 @@ const balances = ref<Balance[]>([])
 const deposito = ref<Deposito[]>([])
 const hutang = ref<Hutang[]>([])
 const bayar = ref<Bayar[]>([])
+
+// Filter PIC di panel Saldo Rekening Bank. Preset ke PIC user yang lagi login (kalau di-set di Master Data).
+const picFilter = ref<string | null>(null)
 
 const today = new Date().toISOString().slice(0, 10)
 const todayLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -40,7 +45,15 @@ async function loadAll() {
     api('/api/rekap/bayar')
   ])
 }
-await Promise.all([loadAll(), refreshLock()])
+async function loadMe() {
+  const me = await api<{ picId: string | null }>('/api/auth/me')
+  picFilter.value = me.picId
+}
+await Promise.all([loadAll(), refreshLock(), loadPics(), loadMe()])
+
+async function toggleRowLock(b: Balance) {
+  await patchBalance(b, 'locked', !b.locked)
+}
 
 async function addRow(kind: 'deposito' | 'hutang' | 'bayar') {
   await api(`/api/rekap/${kind}`, { method: 'POST' })
@@ -64,8 +77,9 @@ const totalDeposito = computed(() => deposito.value.reduce((s, d) => s + (d.nomi
 const totalHutang = computed(() => hutang.value.reduce((s, h) => s + (h.nominal || 0), 0))
 const totalBayar = computed(() => bayar.value.reduce((s, b) => s + (b.nominal || 0), 0))
 
+const filteredBalances = computed(() => picFilter.value ? balances.value.filter(b => b.pic === picFilter.value) : balances.value)
 function balancesForGroup(groupId: string | null) {
-  return balances.value.filter(b => (b.grup || null) === groupId)
+  return filteredBalances.value.filter(b => (b.grup || null) === groupId)
 }
 const groupsWithBalances = computed(() => groups.value.filter(g => balancesForGroup(g.id).length))
 const noGroupBalances = computed(() => balancesForGroup(null))
@@ -76,28 +90,33 @@ function subtotal(rows: Balance[]) {
     bisaDipakai: rows.reduce((s, r) => s + (r.bisaDipakai || 0), 0)
   }
 }
-const grandTotal = computed(() => subtotal(balances.value))
+const grandTotal = computed(() => subtotal(filteredBalances.value))
 
 async function resetSaldo() {
-  if (!confirm('Nge-nol-in kolom Saldo semua rekening bank? Kolom "Bisa Dipakai" dan lainnya tidak berubah. Biasanya dilakuin tiap pagi sebelum update data baru.')) return
-  await api('/api/rekap/reset-saldo', { method: 'POST' })
-  await loadAll()
+  if (!confirm('Nge-nol-in kolom Saldo semua rekening bank? "Bisa Dipakai" ikut jadi 0 karena itu rumus turunan dari Saldo. Kolom lainnya (PIC, Rekening, Ket, Grup) tidak berubah. Biasanya dilakuin tiap pagi sebelum update data baru.')) return
+  try {
+    await api('/api/rekap/reset-saldo', { method: 'POST' })
+  } catch (e: any) {
+    alert(e?.data?.statusMessage || 'Gagal nol-in saldo. Coba lagi.')
+    return
+  }
+  try {
+    await loadAll()
+  } catch {
+    alert('Saldo udah di-reset di server, tapi tampilan gagal dimuat ulang. Refresh halaman ini biar keliatan hasilnya.')
+  }
 }
 
 async function patchBalance(b: Balance, field: string, value: any) {
   try {
     await api(`/api/rekap/balances/${b.id}`, { method: 'PATCH', body: { [field]: value } })
     ;(b as any)[field] = value
+    if (field === 'saldo') b.bisaDipakai = hitungBisaDipakai(value)
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal update.')
     await loadAll()
   }
 }
-function numFromInput(ev: Event) {
-  const raw = (ev.target as HTMLInputElement).value.replace(/[^\d.-]/g, '')
-  return Number(raw) || 0
-}
-
 const newRow = reactive({ pic: '', rek: '' })
 async function addBalance() {
   if (!newRow.rek) { alert('Isi nama rekening dulu.'); return }
@@ -116,7 +135,7 @@ async function deleteBalance(id: string) {
   await loadAll()
 }
 
-const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo || 0), 0))
+const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b.saldo || 0), 0))
 </script>
 
 <template>
@@ -150,27 +169,43 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total saldo saat ini: <b>Rp {{ totalSaldo.toLocaleString('id-ID') }}</b></div>
 
+      <div class="toolbar no-export" style="margin-bottom:10px;">
+        <span class="gm-label">Filter PIC:</span>
+        <select :value="picFilter" @change="picFilter = ($event.target as HTMLSelectElement).value || null">
+          <option value="">Semua PIC</option>
+          <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
+        </select>
+      </div>
+
       <div v-for="g in groupsWithBalances" :key="g.id" style="margin-bottom:10px;">
         <div class="table-wrap">
           <table class="dense" :data-sheet="g.nama">
             <colgroup>
-              <col style="width:7%"><col style="width:23%"><col style="width:15%"><col style="width:15%"><col style="width:19%"><col style="width:14%"><col style="width:7%">
+              <col style="width:10%"><col style="width:19%"><col style="width:15%"><col style="width:15%"><col style="width:16%"><col style="width:14%"><col style="width:11%">
             </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in balancesForGroup(g.id)" :key="b.id" :style="g.warna ? `background:${g.warna}` : ''">
-                <td><input type="text" :value="b.pic" class="cell-edit" style="width:44px;" @change="patchBalance(b, 'pic', ($event.target as HTMLInputElement).value)" /></td>
+                <td>
+                  <select :value="b.pic" @change="patchBalance(b, 'pic', ($event.target as HTMLSelectElement).value || null)">
+                    <option value="">-</option>
+                    <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
+                  </select>
+                </td>
                 <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'saldo', numFromInput($event))" /></td>
-                <td class="num"><input type="text" :value="(b.bisaDipakai ?? 0).toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'bisaDipakai', numFromInput($event))" /></td>
+                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
                 <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td>
                   <select :value="b.grup" style="width:90px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
-                    <option :value="null">Tanpa Grup</option>
+                    <option value="">Tanpa Grup</option>
                     <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
                   </select>
                 </td>
-                <td><span class="row-del" @click="deleteBalance(b.id)">✕</span></td>
+                <td class="row-actions">
+                  <span class="row-lock" :title="b.locked ? 'Buka gembok' : 'Gembok baris ini'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
+                  <span class="row-del" @click="deleteBalance(b.id)">✕</span>
+                </td>
               </tr>
               <tr class="subtotal-row" :style="g.warna ? `background:${g.warna}` : 'background:#F1F1F1'">
                 <td colspan="2">TOTAL {{ g.nama }}</td>
@@ -187,23 +222,31 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
         <div class="table-wrap">
           <table class="dense" data-sheet="Tanpa Grup">
             <colgroup>
-              <col style="width:7%"><col style="width:23%"><col style="width:15%"><col style="width:15%"><col style="width:19%"><col style="width:14%"><col style="width:7%">
+              <col style="width:10%"><col style="width:19%"><col style="width:15%"><col style="width:15%"><col style="width:16%"><col style="width:14%"><col style="width:11%">
             </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in noGroupBalances" :key="b.id">
-                <td><input type="text" :value="b.pic" class="cell-edit" style="width:44px;" @change="patchBalance(b, 'pic', ($event.target as HTMLInputElement).value)" /></td>
+                <td>
+                  <select :value="b.pic" @change="patchBalance(b, 'pic', ($event.target as HTMLSelectElement).value || null)">
+                    <option value="">-</option>
+                    <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
+                  </select>
+                </td>
                 <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'saldo', numFromInput($event))" /></td>
-                <td class="num"><input type="text" :value="(b.bisaDipakai ?? 0).toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'bisaDipakai', numFromInput($event))" /></td>
+                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
                 <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td>
                   <select :value="b.grup" style="width:90px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
-                    <option :value="null">Tanpa Grup</option>
+                    <option value="">Tanpa Grup</option>
                     <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
                   </select>
                 </td>
-                <td><span class="row-del" @click="deleteBalance(b.id)">✕</span></td>
+                <td class="row-actions">
+                  <span class="row-lock" :title="b.locked ? 'Buka gembok' : 'Gembok baris ini'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
+                  <span class="row-del" @click="deleteBalance(b.id)">✕</span>
+                </td>
               </tr>
               <tr class="subtotal-row" style="background:#F1F1F1">
                 <td colspan="2">TOTAL Tanpa Grup</td>
@@ -237,7 +280,10 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
 
       <div class="toolbar" style="margin-top:10px;">
         <span class="gm-label">+ Tambah baris:</span>
-        <input type="text" v-model="newRow.pic" placeholder="PIC" style="width:120px;" />
+        <select v-model="newRow.pic" style="width:120px;">
+          <option value="">Tanpa PIC</option>
+          <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
+        </select>
         <input type="text" v-model="newRow.rek" placeholder="Nama Rekening" style="width:180px;" />
         <button class="btn" @click="addBalance">+ Tambah</button>
       </div>
@@ -261,7 +307,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
             <tr v-if="!deposito.length"><td colspan="7" class="empty-state">Belum ada data deposito.</td></tr>
             <tr v-for="d in deposito" :key="d.id">
               <td><input type="text" :value="d.nama" class="cell-edit" style="width:120px;" @change="patchRow('deposito', d, 'nama', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="num"><input type="text" :value="d.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('deposito', d, 'nominal', Number(($event.target as HTMLInputElement).value.replace(/[^\d.-]/g,'')) || 0)" /></td>
+              <td class="num"><input type="text" :value="d.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('deposito', d, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="date" :value="d.tglMasuk" style="width:130px;" @change="patchRow('deposito', d, 'tglMasuk', ($event.target as HTMLInputElement).value || null)" /></td>
               <td><input type="text" :value="d.rate" class="cell-edit" style="width:70px;" @change="patchRow('deposito', d, 'rate', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="date" :value="d.jatuhTempo" style="width:130px;" @change="patchRow('deposito', d, 'jatuhTempo', ($event.target as HTMLInputElement).value || null)" /></td>
@@ -290,7 +336,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
             <tr v-for="h in hutang" :key="h.id">
               <td><input type="text" :value="h.peminjam" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'peminjam', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="h.kreditur" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'kreditur', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('hutang', h, 'nominal', Number(($event.target as HTMLInputElement).value.replace(/[^\d.-]/g,'')) || 0)" /></td>
+              <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('hutang', h, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="text" :value="h.rate" class="cell-edit" style="width:70px;" @change="patchRow('hutang', h, 'rate', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="date" :value="h.tglPinjam" style="width:130px;" @change="patchRow('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value || null)" /></td>
               <td>
@@ -323,7 +369,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
             <tr v-if="!bayar.length"><td colspan="9" class="empty-state">Belum ada data bayar.</td></tr>
             <tr v-for="b in bayar" :key="b.id">
               <td><input type="text" :value="b.pt" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'pt', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('bayar', b, 'nominal', Number(($event.target as HTMLInputElement).value.replace(/[^\d.-]/g,'')) || 0)" /></td>
+              <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="date" :value="b.tglBayar" style="width:130px;" @change="patchRow('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value || null)" /></td>
               <td><input type="date" :value="b.tglPesan" style="width:130px;" @change="patchRow('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value || null)" /></td>
               <td><input type="text" :value="b.noCtr" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'noCtr', ($event.target as HTMLInputElement).value)" /></td>

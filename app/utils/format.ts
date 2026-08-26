@@ -53,6 +53,14 @@ export function parseDateShort(str: string): string | null {
   return `${y}-${mo}-${d}`
 }
 
+// Rumus "Bisa Dipakai" (Rekap Saldo): IF(saldo>12000000, MROUND(saldo,1000000)-12000000, 0)
+// Cermin dari server/utils/bisaDipakai.ts — dipakai buat update tampilan lokal secara instan
+// sebelum data dari server diambil ulang.
+export function hitungBisaDipakai(saldo: number): number {
+  if (!(saldo > 12_000_000)) return 0
+  return Math.round(saldo / 1_000_000) * 1_000_000 - 12_000_000
+}
+
 export function sumBy<T>(arr: T[], key: keyof T): number {
   return arr.reduce((a, x) => a + (Number(x[key]) || 0), 0)
 }

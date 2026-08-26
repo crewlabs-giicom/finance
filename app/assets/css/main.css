@@ -126,6 +126,9 @@ td.num, th.num { text-align: right; }
 .grand-total-row td { font-weight: 700; background: var(--accent-light); color: var(--accent); }
 .row-del { cursor: pointer; color: var(--red); font-weight: 700; }
 .row-del:hover { text-decoration: underline; }
+.row-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.row-lock { cursor: pointer; font-size: 12px; line-height: 1; }
+.row-lock:hover { opacity: .7; }
 
 .cell-edit { min-width: 60px; }
 
@@ -196,6 +199,10 @@ td.num .cell-input { text-align: right; }
 .chip .chip-move { cursor: pointer; font-size: 8px; opacity: .5; }
 .chip .chip-move:hover { opacity: 1; }
 .chip .chip-move.disabled { opacity: .15; cursor: default; pointer-events: none; }
+.chip .chip-pic {
+  background: rgba(255,255,255,.6); border: none; border-radius: 999px; padding: 1px 6px;
+  font: inherit; font-size: 10.5px; font-weight: 600; color: inherit; max-width: 90px;
+}
 
 /* ---------- ringkasan angka ---------- */
 .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }

@@ -2,7 +2,7 @@
 import { fmtNum, fmtRp, parseNum } from '~/utils/format'
 
 const api = useApi()
-const { sections, load: loadGroups } = useGroups()
+const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
 const { exportTables } = useXlsx()
 const rowColors = useRowColors('ent')
@@ -28,6 +28,7 @@ async function loadAll() {
   await rowColors.load()
 }
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
+filterGroup.value = (await myGroupId()) || filterGroup.value
 
 const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`)
 

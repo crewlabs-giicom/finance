@@ -1,14 +1,17 @@
 <script setup lang="ts">
 const api = useApi()
 const { load: loadGroups } = useGroups()
+const { load: loadPics } = usePics()
 const { lockYm, label: lockLabel, refresh: refreshLock, setLock } = usePeriodLock()
 
-type Group = { id: string; nama: string; warna: string | null; urutan: number }
+type Group = { id: string; nama: string; warna: string | null; urutan: number; picId: string | null }
 type Account = { id: string; groupId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Npwp = { id: string; noNpwp: string; namaNpwp: string; nik: string | null; alamat: string | null }
 type Coa = { id: string; noCoa: string; namaCoa: string }
 type Tag = { id: string; nama: string }
 type SimpleMaster = { id: string; kind: 'tipe' | 'kategori' | 'div'; value: string }
+type Pic = { id: string; nama: string; urutan: number }
+type UserRow = { id: string; name: string; email: string; role: string; picId: string | null }
 
 const groups = ref<Group[]>([])
 const accounts = ref<Account[]>([])
@@ -16,6 +19,8 @@ const npwps = ref<Npwp[]>([])
 const coas = ref<Coa[]>([])
 const tags = ref<Tag[]>([])
 const asetMaster = ref<SimpleMaster[]>([])
+const picList = ref<Pic[]>([])
+const userList = ref<UserRow[]>([])
 
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -25,18 +30,21 @@ const newNpwp = reactive({ noNpwp: '', namaNpwp: '', nik: '', alamat: '' })
 const newCoa = reactive({ noCoa: '', namaCoa: '' })
 const newTag = ref('')
 const newAsetMaster = reactive({ tipe: '', kategori: '', div: '' })
+const newPicNama = ref('')
 const lockInput = ref('')
 
 async function loadAll() {
-  ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, asetMaster.value] = await Promise.all([
+  ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, asetMaster.value, picList.value, userList.value] = await Promise.all([
     api<Group[]>('/api/master/groups'),
     api<Account[]>('/api/master/accounts'),
     api<Npwp[]>('/api/master/npwp'),
     api<Coa[]>('/api/master/coa'),
     api<Tag[]>('/api/master/tags'),
-    api<SimpleMaster[]>('/api/master/aset-simple')
+    api<SimpleMaster[]>('/api/master/aset-simple'),
+    api<Pic[]>('/api/master/pics'),
+    api<UserRow[]>('/api/master/users')
   ])
-  await loadGroups(true)
+  await Promise.all([loadGroups(true), loadPics(true)])
 }
 await Promise.all([loadAll(), refreshLock()])
 lockInput.value = lockYm.value || ''
@@ -78,6 +86,37 @@ const moveGroup = (index: number, dir: -1 | 1) => {
     api(`/api/master/groups/${b.id}`, { method: 'PATCH', body: { urutan: a.urutan } })
   ]), 'Urutan grup diperbarui.')
 }
+const setGroupPic = (g: Group, picId: string) =>
+  run(() => api(`/api/master/groups/${g.id}`, { method: 'PATCH', body: { picId: picId || null } }), 'PIC grup diperbarui.')
+
+const addPic = () => {
+  if (!newPicNama.value.trim()) return
+  return run(async () => {
+    await api('/api/master/pics', { method: 'POST', body: { nama: newPicNama.value.trim() } })
+    newPicNama.value = ''
+  }, 'PIC ditambahkan.')
+}
+const deletePic = (id: string) => {
+  if (!confirm('Hapus PIC ini? Rekening yang masih ikut PIC ini tidak ikut terhapus, hanya jadi Tanpa PIC. User yang ke-link ke PIC ini juga dilepas.')) return
+  return run(() => api(`/api/master/pics/${id}`, { method: 'DELETE' }), 'PIC dihapus.')
+}
+const renamePic = (p: Pic, nama: string) => {
+  nama = nama.trim()
+  if (!nama || nama === p.nama) return
+  return run(() => api(`/api/master/pics/${p.id}`, { method: 'PATCH', body: { nama } }), 'PIC diperbarui.')
+}
+const movePic = (index: number, dir: -1 | 1) => {
+  const target = index + dir
+  if (target < 0 || target >= picList.value.length) return
+  const a = picList.value[index]!
+  const b = picList.value[target]!
+  return run(() => Promise.all([
+    api(`/api/master/pics/${a.id}`, { method: 'PATCH', body: { urutan: b.urutan } }),
+    api(`/api/master/pics/${b.id}`, { method: 'PATCH', body: { urutan: a.urutan } })
+  ]), 'Urutan PIC diperbarui.')
+}
+const setUserPic = (u: UserRow, picId: string) =>
+  run(() => api(`/api/master/users/${u.id}`, { method: 'PATCH', body: { picId: picId || null } }), 'PIC user diperbarui.')
 
 const addAccount = () => {
   if (!newAcc.namaRek.trim() || !newAcc.noRek.trim()) return
@@ -189,7 +228,7 @@ function groupLabel(id: string | null) {
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h3>🏢 Grup PT / Rekening</h3></div>
+      <div class="panel-head"><h3>🏢 Grup</h3></div>
       <div class="toolbar">
         <input v-model="newGroupNama" placeholder="Nama grup (misal: GIM)" @keyup.enter="addGroup" />
         <button class="btn" @click="addGroup">+ Tambah Grup</button>
@@ -202,9 +241,58 @@ function groupLabel(id: string | null) {
             <span class="chip-move" :class="{ disabled: i === groups.length - 1 }" @click="moveGroup(i, 1)">▼</span>
           </span>
           <input type="text" class="chip-edit" :value="g.nama" size="1" @change="renameGroup(g, ($event.target as HTMLInputElement).value)" />
+          <select class="chip-pic" :value="g.picId" :title="'PIC penanggung jawab grup ini'" @change="setGroupPic(g, ($event.target as HTMLSelectElement).value)">
+            <option value="">Tanpa PIC</option>
+            <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
+          </select>
           <span class="chip-del" @click="deleteGroup(g.id)">✕</span>
         </span>
       </div>
+      <p class="hint">PIC di tiap grup dipakai buat preset "Filter Grup" otomatis ke grup dia sendiri waktu user itu login, di semua menu.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🙋 PIC</h3></div>
+      <div class="toolbar">
+        <input v-model="newPicNama" placeholder="Nama PIC (misal: AND)" @keyup.enter="addPic" />
+        <button class="btn" @click="addPic">+ Tambah PIC</button>
+      </div>
+      <div v-if="!picList.length" class="empty-state">Belum ada PIC.</div>
+      <div v-else class="chip-row">
+        <span v-for="(p, i) in picList" :key="p.id" class="chip">
+          <span class="chip-move-col">
+            <span class="chip-move" :class="{ disabled: i === 0 }" @click="movePic(i, -1)">▲</span>
+            <span class="chip-move" :class="{ disabled: i === picList.length - 1 }" @click="movePic(i, 1)">▼</span>
+          </span>
+          <input type="text" class="chip-edit" :value="p.nama" size="1" @change="renamePic(p, ($event.target as HTMLInputElement).value)" />
+          <span class="chip-del" @click="deletePic(p.id)">✕</span>
+        </span>
+      </div>
+      <p class="hint">Dipakai buat kolom &amp; filter PIC di Rekap Saldo. Link ke user login diatur di bawah.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🔗 User &amp; PIC</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>PIC</th></tr></thead>
+          <tbody>
+            <tr v-if="!userList.length"><td colspan="4" class="empty-state">Belum ada user.</td></tr>
+            <tr v-for="u in userList" :key="u.id">
+              <td>{{ u.name }}</td>
+              <td>{{ u.email }}</td>
+              <td><span class="pill">{{ u.role }}</span></td>
+              <td>
+                <select :value="u.picId" style="width:140px;" @change="setUserPic(u, ($event.target as HTMLSelectElement).value)">
+                  <option value="">Semua PIC</option>
+                  <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Kalau user punya PIC, filter PIC di Rekap Saldo otomatis ke-preset ke PIC-nya waktu dia login (tetap bisa diganti ke "Semua PIC").</p>
     </div>
 
     <div class="panel">

@@ -5,14 +5,13 @@ export default defineEventHandler(async (event) => {
   if (!body?.rek) throw createError({ statusCode: 400, statusMessage: 'Rek wajib diisi.' })
 
   const id = genId('bb')
+  const saldo = Number(body.saldo) || 0
   const row = {
     id,
-    pic: body.pic || '',
+    pic: body.pic || null,
     rek: body.rek,
-    saldo: Number(body.saldo) || 0,
-    bisaDipakai: body.bisaDipakai !== undefined && body.bisaDipakai !== null && body.bisaDipakai !== ''
-      ? Number(body.bisaDipakai)
-      : null,
+    saldo,
+    bisaDipakai: hitungBisaDipakai(saldo),
     ket: body.ket || '',
     grup: body.grup || null
   }

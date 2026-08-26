@@ -1,0 +1,1 @@
+ALTER TABLE `bank_groups` ADD `pic_id` text REFERENCES pics(id);

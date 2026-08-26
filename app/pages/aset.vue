@@ -3,7 +3,7 @@ import { MONTH_NAMES, fmtNum, fmtRp, formatDateShort, formatIsoDate, parseNum } 
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
-const { groups, sections, load: loadGroups, nameOf } = useGroups()
+const { groups, sections, load: loadGroups, nameOf, myGroupId } = useGroups()
 const { exportTables } = useXlsx()
 
 type Aset = {
@@ -45,6 +45,7 @@ async function loadAll() {
   ])
 }
 await Promise.all([loadAll(), loadGroups()])
+filterGroup.value = (await myGroupId()) || filterGroup.value
 
 const tipeList = computed(() => master.value.filter(m => m.kind === 'tipe').map(m => m.value))
 const kategoriList = computed(() => master.value.filter(m => m.kind === 'kategori').map(m => m.value))

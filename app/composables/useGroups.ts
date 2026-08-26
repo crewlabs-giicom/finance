@@ -1,4 +1,4 @@
-export type Group = { id: string; nama: string; warna: string | null }
+export type Group = { id: string; nama: string; warna: string | null; picId: string | null }
 
 /**
  * Grup PT/rekening dipakai hampir semua modul untuk mengelompokkan tabel.
@@ -27,5 +27,20 @@ export function useGroups() {
     { id: null as string | null, nama: 'Tanpa Grup', warna: '#E4E4E4' }
   ])
 
-  return { groups, load, nameOf, colorOf, sections }
+  /**
+   * Grup yang PIC-nya sama dengan PIC user yang lagi login — dipakai buat preset
+   * "Filter Grup" tiap modul otomatis ke grup dia sendiri. null kalau user gak punya
+   * PIC, atau gak ada grup yang di-set ke PIC itu.
+   */
+  async function myGroupId(): Promise<string | null> {
+    try {
+      const me = await api<{ picId: string | null }>('/api/auth/me')
+      if (!me.picId) return null
+      return groups.value.find(g => g.picId === me.picId)?.id ?? null
+    } catch {
+      return null
+    }
+  }
+
+  return { groups, load, nameOf, colorOf, sections, myGroupId }
 }

@@ -8,7 +8,16 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: text('role').notNull().default('staff'), // 'admin' | 'staff'
-  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`)
+  createdAt: text('created_at').notNull().default(sql`(current_timestamp)`),
+  // PIC yang dipakai buat preset filter PIC di Rekap Saldo waktu user ini login. Opsional.
+  picId: text('pic_id').references(() => pics.id)
+})
+
+// ---------- Master Data: PIC (dipakai buat filter Rekap Saldo, opsional terhubung ke user login) ----------
+export const pics = sqliteTable('pics', {
+  id: text('id').primaryKey(),
+  nama: text('nama').notNull(),
+  urutan: integer('urutan').notNull().default(0)
 })
 
 // ---------- Master Data: Grup PT/Rekening (dipakai bareng banyak menu) ----------
@@ -16,7 +25,9 @@ export const bankGroups = sqliteTable('bank_groups', {
   id: text('id').primaryKey(),
   nama: text('nama').notNull(),
   warna: text('warna').default('#6C5CE7'),
-  urutan: integer('urutan').notNull().default(0)
+  urutan: integer('urutan').notNull().default(0),
+  // PIC penanggung jawab grup ini. Dipakai buat preset "Filter Grup" ke grup user itu waktu dia login.
+  picId: text('pic_id').references(() => pics.id)
 })
 
 export const bankAccounts = sqliteTable('bank_accounts', {
@@ -33,12 +44,14 @@ export const bankAccounts = sqliteTable('bank_accounts', {
 // ---------- Rekap Saldo: Saldo Rekening Bank (mirrors original app's `bank[]` array) ----------
 export const bankBalances = sqliteTable('bank_balances', {
   id: text('id').primaryKey(),
-  pic: text('pic').default(''),
+  pic: text('pic').references(() => pics.id), // FK to pics.id (nullable = "Tanpa PIC")
   rek: text('rek').notNull().default(''),
   saldo: real('saldo').notNull().default(0),
   bisaDipakai: real('bisa_dipakai'),
   ket: text('ket').default(''),
-  grup: text('grup').references(() => bankGroups.id) // FK to bank_groups.id (nullable = "Tanpa Grup")
+  grup: text('grup').references(() => bankGroups.id), // FK to bank_groups.id (nullable = "Tanpa Grup")
+  // Gembok per baris — kalau true, kolom Saldo baris ini gak bisa diedit (termasuk lewat Nol-in Semua Saldo).
+  locked: integer('locked', { mode: 'boolean' }).notNull().default(false)
 })
 
 // ---------- Rincian Bank ----------

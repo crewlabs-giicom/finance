@@ -3,7 +3,7 @@ import { fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
-const { sections, load: loadGroups } = useGroups()
+const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
 const { readFileRows, exportTables } = useXlsx()
 const rowColors = useRowColors('avp')
@@ -43,6 +43,7 @@ async function loadAll() {
   await rowColors.load()
 }
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
+filterGroup.value = (await myGroupId()) || filterGroup.value
 
 const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`)
 

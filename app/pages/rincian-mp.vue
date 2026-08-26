@@ -2,7 +2,7 @@
 import { daysInMonth, fmtRp, formatDateShort, parseNum } from '~/utils/format'
 
 const api = useApi()
-const { sections, load: loadGroups } = useGroups()
+const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel } = usePeriodLock()
 const { exportTables } = useXlsx()
 
@@ -26,6 +26,7 @@ async function loadAll() {
   ])
 }
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
+filterGroup.value = (await myGroupId()) || filterGroup.value
 
 const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}-`)
 const monthStart = computed(() => `${monthPrefix.value}01`)
