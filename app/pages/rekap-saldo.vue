@@ -133,6 +133,8 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong> — data di bulan itu ke bawah tidak bisa diubah.
     </div>
 
+    <div class="rekap-grid">
+    <div class="rekap-col">
     <div class="panel">
       <div class="panel-head">
         <h3>💳 Saldo Rekening Bank</h3>
@@ -225,7 +227,9 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
         Belum ada rekening bank. Tambahkan lewat form di atas.
       </div>
     </div>
+    </div>
 
+    <div class="rekap-col">
     <div class="panel">
       <div class="panel-head">
         <h3>🏦 Deposito</h3>
@@ -305,6 +309,8 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
           </tbody>
         </table>
       </div>
+    </div>
+    </div>
     </div>
   </div>
 </template>
