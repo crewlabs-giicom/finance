@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { hitungBisaDipakai, parseNum } from '~/utils/format'
+import { hitungBisaDipakai, parseNum, formatDateShort, parseDateShort } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -80,6 +80,21 @@ async function patchRow(kind: 'deposito' | 'hutang' | 'bayar', row: any, field: 
     alert(e?.data?.statusMessage || 'Gagal update.')
     await loadAll()
   }
+}
+/** Textarea Keterangan tumbuh sesuai isinya — dipanggil waktu mount dan tiap ngetik. */
+function autoGrow(el: HTMLTextAreaElement | EventTarget | null) {
+  const ta = el as HTMLTextAreaElement | null
+  if (!ta) return
+  ta.style.height = 'auto'
+  ta.style.height = ta.scrollHeight + 'px'
+}
+
+function patchDateShort(kind: 'hutang' | 'bayar', row: any, field: string, rawText: string) {
+  const trimmed = rawText.trim()
+  if (!trimmed) { patchRow(kind, row, field, null); return }
+  const iso = parseDateShort(trimmed)
+  if (!iso) { alert('Format tanggal salah. Pakai dd/mm/yy, misal 25/09/26.'); return }
+  patchRow(kind, row, field, iso)
 }
 const totalDeposito = computed(() => deposito.value.reduce((s, d) => s + (d.nominal || 0), 0))
 const totalHutang = computed(() => hutang.value.reduce((s, h) => s + (h.nominal || 0), 0))
@@ -341,7 +356,7 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
       <div class="table-wrap">
         <table class="dense" data-sheet="Hutang">
           <colgroup>
-            <col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:7%"><col style="width:13%"><col style="width:17%"><col style="width:18%"><col style="width:6%">
+            <col style="width:13%"><col style="width:13%"><col style="width:17%"><col style="width:5%"><col style="width:10%"><col style="width:12%"><col style="width:24%"><col style="width:6%">
           </colgroup>
           <thead><tr><th>Peminjam</th><th>Kreditur</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Pinjam</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
@@ -354,12 +369,12 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
             >
               <td><input type="text" :value="h.peminjam" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'peminjam', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="h.kreditur" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'kreditur', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('hutang', h, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
-              <td><input type="text" :value="h.rate" class="cell-edit" style="width:70px;" @change="patchRow('hutang', h, 'rate', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="date" :value="h.tglPinjam" style="width:130px;" @change="patchRow('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value || null)" /></td>
+              <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchRow('hutang', h, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
+              <td><input type="text" :value="h.rate" class="cell-edit" style="width:44px;" @change="patchRow('hutang', h, 'rate', ($event.target as HTMLInputElement).value)" /></td>
+              <td><input type="text" :value="formatDateShort(h.tglPinjam)" placeholder="dd/mm/yy" @change="patchDateShort('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value)" /></td>
               <td>
                 <div style="display:flex;flex-direction:column;gap:2px;">
-                  <input type="date" :value="h.jatuhTempo" @change="patchRow('hutang', h, 'jatuhTempo', ($event.target as HTMLInputElement).value || null)" />
+                  <input type="text" :value="formatDateShort(h.jatuhTempo)" placeholder="dd/mm/yy" @change="patchDateShort('hutang', h, 'jatuhTempo', ($event.target as HTMLInputElement).value)" />
                   <span v-if="h.jatuhTempo && h.jatuhTempo < today" class="pill overdue" style="margin-left:0;">Lewat tempo</span>
                 </div>
               </td>
@@ -380,7 +395,7 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
       <div class="table-wrap">
         <table class="dense" data-sheet="Bayar">
           <colgroup>
-            <col style="width:9%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:25%"><col style="width:6%">
+            <col style="width:9%"><col style="width:20%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:16%"><col style="width:6%">
           </colgroup>
           <thead><tr><th>PT</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
@@ -392,13 +407,19 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
               title="Klik kanan buat warnain baris"
             >
               <td><input type="text" :value="b.pt" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'pt', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
-              <td><input type="date" :value="b.tglBayar" style="width:130px;" @change="patchRow('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value || null)" /></td>
-              <td><input type="date" :value="b.tglPesan" style="width:130px;" @change="patchRow('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value || null)" /></td>
+              <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
+              <td><input type="text" :value="formatDateShort(b.tglBayar)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value)" /></td>
+              <td><input type="text" :value="formatDateShort(b.tglPesan)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="b.noCtr" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'noCtr', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="b.payIam" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'payIam', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="b.payEkspds" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'payEkspds', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="b.ket" class="cell-edit" style="width:130px;" @change="patchRow('bayar', b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
+              <td>
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                  :value="b.ket" @input="autoGrow($event.target)"
+                  @change="patchRow('bayar', b, 'ket', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
               <td><span class="row-del" @click="deleteRow('bayar', b.id)">✕</span></td>
             </tr>
           </tbody>
@@ -433,5 +454,19 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
   height: 22px;
   line-height: 1.2;
   font-size: 11.5px;
+}
+.rekap-grid table.dense textarea.wrap-textarea {
+  width: 100% !important;
+  box-sizing: border-box;
+  padding: 1px 4px;
+  min-height: 22px;
+  line-height: 1.2;
+  font-size: 11.5px;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  resize: none;
+  overflow: hidden;
+  display: block;
 }
 </style>
