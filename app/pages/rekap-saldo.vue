@@ -3,6 +3,14 @@ import { hitungBisaDipakai, parseNum } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
+const depositoColors = useRowColors('deposito')
+const hutangColors = useRowColors('hutang')
+const bayarColors = useRowColors('bayar')
+function closeColorMenus() {
+  depositoColors.close()
+  hutangColors.close()
+  bayarColors.close()
+}
 type Group = { id: string; nama: string; warna: string | null }
 type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean }
 type Deposito = { id: string; nama: string | null; nominal: number; tglMasuk: string | null; rate: string | null; jatuhTempo: string | null; ket: string | null }
@@ -49,7 +57,7 @@ async function loadMe() {
   const me = await api<{ picId: string | null }>('/api/auth/me')
   picFilter.value = me.picId
 }
-await Promise.all([loadAll(), refreshLock(), loadPics(), loadMe()])
+await Promise.all([loadAll(), refreshLock(), loadPics(), loadMe(), depositoColors.load(), hutangColors.load(), bayarColors.load()])
 
 async function toggleRowLock(b: Balance) {
   await patchBalance(b, 'locked', !b.locked)
@@ -139,7 +147,7 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
 </script>
 
 <template>
-  <div>
+  <div @click="closeColorMenus">
     <div class="topbar">
       <div>
         <h2>Rekap Saldo</h2>
@@ -305,7 +313,12 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
           <thead><tr><th>Nama</th><th class="num">Nominal</th><th>Tgl Masuk</th><th>Rate</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!deposito.length"><td colspan="7" class="empty-state">Belum ada data deposito.</td></tr>
-            <tr v-for="d in deposito" :key="d.id">
+            <tr
+              v-for="d in deposito" :key="d.id"
+              :style="depositoColors.colorOf(d.id) ? `background:${depositoColors.colorOf(d.id)}` : ''"
+              @contextmenu="depositoColors.open($event, d.id)"
+              title="Klik kanan buat warnain baris"
+            >
               <td><input type="text" :value="d.nama" class="cell-edit" style="width:120px;" @change="patchRow('deposito', d, 'nama', ($event.target as HTMLInputElement).value)" /></td>
               <td class="num"><input type="text" :value="d.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('deposito', d, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="date" :value="d.tglMasuk" style="width:130px;" @change="patchRow('deposito', d, 'tglMasuk', ($event.target as HTMLInputElement).value || null)" /></td>
@@ -333,7 +346,12 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
           <thead><tr><th>Peminjam</th><th>Kreditur</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Pinjam</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!hutang.length"><td colspan="8" class="empty-state">Belum ada data hutang.</td></tr>
-            <tr v-for="h in hutang" :key="h.id">
+            <tr
+              v-for="h in hutang" :key="h.id"
+              :style="hutangColors.colorOf(h.id) ? `background:${hutangColors.colorOf(h.id)}` : ''"
+              @contextmenu="hutangColors.open($event, h.id)"
+              title="Klik kanan buat warnain baris"
+            >
               <td><input type="text" :value="h.peminjam" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'peminjam', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="h.kreditur" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'kreditur', ($event.target as HTMLInputElement).value)" /></td>
               <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('hutang', h, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
@@ -367,7 +385,12 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
           <thead><tr><th>PT</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!bayar.length"><td colspan="9" class="empty-state">Belum ada data bayar.</td></tr>
-            <tr v-for="b in bayar" :key="b.id">
+            <tr
+              v-for="b in bayar" :key="b.id"
+              :style="bayarColors.colorOf(b.id) ? `background:${bayarColors.colorOf(b.id)}` : ''"
+              @contextmenu="bayarColors.open($event, b.id)"
+              title="Klik kanan buat warnain baris"
+            >
               <td><input type="text" :value="b.pt" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'pt', ($event.target as HTMLInputElement).value)" /></td>
               <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="date" :value="b.tglBayar" style="width:130px;" @change="patchRow('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value || null)" /></td>
@@ -385,6 +408,10 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
     </div>
     </div>
     </div>
+
+    <RowColorMenu :menu="depositoColors.menu" @pick="depositoColors.pick" />
+    <RowColorMenu :menu="hutangColors.menu" @pick="hutangColors.pick" />
+    <RowColorMenu :menu="bayarColors.menu" @pick="bayarColors.pick" />
   </div>
 </template>
 
