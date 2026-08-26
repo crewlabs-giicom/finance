@@ -24,5 +24,9 @@ export default defineEventHandler(async (event) => {
   if (Object.keys(patch).length === 0) throw createError({ statusCode: 400, statusMessage: 'Gak ada field yang diupdate.' })
 
   await db.update(bankTxns).set(patch).where(eq(bankTxns.id, id))
+
+  const SYNC_TRIGGER_FIELDS = ['tag', 'tanggal', 'debet', 'kredit', 'transaksi', 'ketTransaksiManual', 'noBankManual']
+  if (SYNC_TRIGGER_FIELDS.some(f => f in patch)) await syncTagDerivedRows(id)
+
   return { ok: true }
 })

@@ -249,7 +249,7 @@ async function onExport() {
       </div>
 
       <div class="table-wrap">
-        <table>
+        <table :data-sheet="acc.namaRek">
           <thead>
             <tr>
               <th class="no-export"></th><th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>

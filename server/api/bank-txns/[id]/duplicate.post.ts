@@ -10,5 +10,6 @@ export default defineEventHandler(async (event) => {
   const newId = genId('bt')
   const { id: _old, ...rest } = row
   await db.insert(bankTxns).values({ ...rest, id: newId })
+  await syncTagDerivedRows(newId)
   return { ...rest, id: newId }
 })

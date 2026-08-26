@@ -131,6 +131,21 @@ async function deleteRow(r: PpnRow) {
   }
 }
 
+/** Duplicate lewat menu klik kanan — salin seluruh isi baris kecuali id & sumber transaksinya.
+ *  Hasil duplicate diselipin persis di bawah baris aslinya, bukan ke ujung bawah daftar. */
+async function duplicateRow(id: string) {
+  const srcIndex = rows.value.findIndex(r => r.id === id)
+  rowColors.close()
+  if (srcIndex === -1) return
+  const { id: _id, sourceTxnId: _s, ...body } = rows.value[srcIndex]!
+  try {
+    const created = await api<PpnRow>('/api/ppn', { method: 'POST', body })
+    rows.value.splice(srcIndex + 1, 0, created)
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal duplicate.' }
+  }
+}
+
 // -- import Excel --
 const HEADERS = {
   tanggal: ['DATE', 'TANGGAL'],
@@ -358,6 +373,6 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
       </div>
     </div>
 
-    <RowColorMenu :menu="rowColors.menu" @pick="rowColors.pick" />
+    <RowColorMenu :menu="rowColors.menu" show-duplicate @pick="rowColors.pick" @duplicate="duplicateRow" />
   </div>
 </template>

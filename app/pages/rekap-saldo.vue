@@ -204,7 +204,7 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
         <div class="table-wrap">
           <table class="dense" :data-sheet="g.nama">
             <colgroup>
-              <col style="width:10%"><col style="width:19%"><col style="width:15%"><col style="width:15%"><col style="width:16%"><col style="width:14%"><col style="width:11%">
+              <col style="width:10%"><col style="width:18%"><col style="width:17%"><col style="width:17%"><col style="width:13%"><col style="width:14%"><col style="width:11%">
             </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
@@ -245,7 +245,7 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
         <div class="table-wrap">
           <table class="dense" data-sheet="Tanpa Grup">
             <colgroup>
-              <col style="width:10%"><col style="width:19%"><col style="width:15%"><col style="width:15%"><col style="width:16%"><col style="width:14%"><col style="width:11%">
+              <col style="width:10%"><col style="width:18%"><col style="width:17%"><col style="width:17%"><col style="width:13%"><col style="width:14%"><col style="width:11%">
             </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
@@ -285,7 +285,7 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
       <div class="table-wrap" style="margin-top:6px;">
         <table class="dense" data-sheet="Total Bank">
           <colgroup>
-            <col style="width:70%"><col style="width:15%"><col style="width:15%">
+            <col style="width:58%"><col style="width:21%"><col style="width:21%">
           </colgroup>
           <tbody>
             <tr class="grand-total-row">
@@ -468,5 +468,13 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
   resize: none;
   overflow: hidden;
   display: block;
+}
+/* Baris subtotal/grand-total nampilin teks polos (bukan input yang bisa clip sendiri) —
+   dibolehin wrap biar angka besar gak pernah numpuk ke kolom sebelah, baik di layar maupun di screenshot. */
+.rekap-grid table.dense .subtotal-row td.num,
+.rekap-grid table.dense .grand-total-row td.num {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
 }
 </style>

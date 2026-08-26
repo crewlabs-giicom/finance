@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { daysInMonth, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { daysInMonth, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
@@ -224,7 +224,7 @@ async function onExport() {
                 <td class="num">
                   <input
                     class="cell-input"
-                    :value="entryOf(st.id, iso)?.debet || ''"
+                    :value="fmtNum(entryOf(st.id, iso)?.debet, true)"
                     :disabled="isLocked(iso)"
                     @change="saveCell(st.id, iso, 'debet', ($event.target as HTMLInputElement).value)"
                   />
@@ -232,7 +232,7 @@ async function onExport() {
                 <td class="num">
                   <input
                     class="cell-input"
-                    :value="entryOf(st.id, iso)?.kredit || ''"
+                    :value="fmtNum(entryOf(st.id, iso)?.kredit, true)"
                     :disabled="isLocked(iso)"
                     @change="saveCell(st.id, iso, 'kredit', ($event.target as HTMLInputElement).value)"
                   />
