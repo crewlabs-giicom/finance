@@ -58,6 +58,10 @@ a { color: inherit; }
   background: var(--card); border: 1px solid var(--border); border-radius: 10px;
   padding: 16px 18px; margin-bottom: 16px;
 }
+
+.rekap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.rekap-col .panel { margin-bottom: 16px; }
+@media (max-width: 1100px) { .rekap-grid { grid-template-columns: 1fr; } }
 .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .panel-head h3 { margin: 0; font-size: 15px; }
 
