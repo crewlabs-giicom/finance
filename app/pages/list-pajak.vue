@@ -306,7 +306,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
                 <input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)"
                   @change="patchRow(r, { tanggal: ($event.target as HTMLInputElement).value })" />
               </td>
-              <td><input class="cell-input" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
+              <td><input class="cell-input" style="min-width:110px;" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="r.store" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { store: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" style="min-width:180px;" :value="r.description" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { description: ($event.target as HTMLInputElement).value })" /></td>
               <td>
