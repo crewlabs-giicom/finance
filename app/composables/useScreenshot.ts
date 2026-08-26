@@ -10,12 +10,16 @@ export function useScreenshot() {
       const canvas = await html2canvas(el, {
         backgroundColor: getComputedStyle(document.body).backgroundColor || '#ffffff',
         scale: Math.min(2, window.devicePixelRatio || 1),
-        useCORS: true
+        useCORS: true,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight
       })
       const link = document.createElement('a')
       link.download = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.png`
       link.href = canvas.toDataURL('image/png')
       link.click()
+    } catch (e: any) {
+      alert('Gagal bikin screenshot: ' + (e?.message || 'unknown error'))
     } finally {
       busy.value = false
     }

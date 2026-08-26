@@ -187,6 +187,15 @@ td.num .cell-input { text-align: right; }
 }
 .chip .chip-del { cursor: pointer; font-size: 11px; opacity: .7; }
 .chip .chip-del:hover { opacity: 1; }
+.chip .chip-edit {
+  background: transparent; border: none; padding: 0; margin: 0; outline: none;
+  font: inherit; font-weight: 600; color: inherit; width: 9ch; min-width: 3ch;
+}
+.chip .chip-edit:hover, .chip .chip-edit:focus { text-decoration: underline; }
+.chip .chip-move-col { display: flex; flex-direction: column; gap: 0; line-height: 7px; }
+.chip .chip-move { cursor: pointer; font-size: 8px; opacity: .5; }
+.chip .chip-move:hover { opacity: 1; }
+.chip .chip-move.disabled { opacity: .15; cursor: default; pointer-events: none; }
 
 /* ---------- ringkasan angka ---------- */
 .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -207,6 +216,10 @@ td.num .cell-input { text-align: right; }
 }
 .lock-banner {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 8px; font-size: 12.5px;
+  background: var(--accent-light); color: #414a68; margin-bottom: 12px;
+}
+.date-banner {
   padding: 8px 12px; border-radius: 8px; font-size: 12.5px;
   background: var(--accent-light); color: #414a68; margin-bottom: 12px;
 }

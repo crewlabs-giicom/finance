@@ -14,6 +14,7 @@ const hutang = ref<Hutang[]>([])
 const bayar = ref<Bayar[]>([])
 
 const today = new Date().toISOString().slice(0, 10)
+const todayLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 // Screenshot & export dipakai untuk laporan harian yang dikirim ke grup.
 const { exportTables } = useXlsx()
@@ -100,10 +101,14 @@ function numFromInput(ev: Event) {
 const newRow = reactive({ pic: '', rek: '' })
 async function addBalance() {
   if (!newRow.rek) { alert('Isi nama rekening dulu.'); return }
-  await api('/api/rekap/balances', { method: 'POST', body: { pic: newRow.pic, rek: newRow.rek, saldo: 0, bisaDipakai: 0, ket: '', grup: null } })
-  newRow.pic = ''
-  newRow.rek = ''
-  await loadAll()
+  try {
+    await api('/api/rekap/balances', { method: 'POST', body: { pic: newRow.pic, rek: newRow.rek, saldo: 0, bisaDipakai: 0, ket: '', grup: null } })
+    newRow.pic = ''
+    newRow.rek = ''
+    await loadAll()
+  } catch (e: any) {
+    alert(e?.data?.statusMessage || 'Gagal nambah rekening.')
+  }
 }
 async function deleteBalance(id: string) {
   if (!confirm('Hapus baris rekening ini?')) return
@@ -115,7 +120,7 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
 </script>
 
 <template>
-  <div ref="report">
+  <div>
     <div class="topbar">
       <div>
         <h2>Rekap Saldo</h2>
@@ -133,6 +138,9 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong> — data di bulan itu ke bawah tidak bisa diubah.
     </div>
 
+    <div ref="report">
+    <div class="date-banner">📅 Data per hari ini: <b>{{ todayLabel }}</b></div>
+
     <div class="rekap-grid">
     <div class="rekap-col">
     <div class="panel">
@@ -142,27 +150,22 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total saldo saat ini: <b>Rp {{ totalSaldo.toLocaleString('id-ID') }}</b></div>
 
-      <div class="toolbar" style="margin-bottom:14px;">
-        <span class="gm-label">+ Tambah baris:</span>
-        <input type="text" v-model="newRow.pic" placeholder="PIC" style="width:120px;" />
-        <input type="text" v-model="newRow.rek" placeholder="Nama Rekening" style="width:180px;" />
-        <button class="btn" @click="addBalance">+ Tambah</button>
-      </div>
-
-      <div v-for="g in groupsWithBalances" :key="g.id" style="margin-bottom:18px;">
-        <div style="font-weight:700;margin-bottom:6px;border-left:4px solid var(--accent);padding-left:8px;">{{ g.nama }}</div>
+      <div v-for="g in groupsWithBalances" :key="g.id" style="margin-bottom:10px;">
         <div class="table-wrap">
-          <table :data-sheet="g.nama">
+          <table class="dense" :data-sheet="g.nama">
+            <colgroup>
+              <col style="width:7%"><col style="width:23%"><col style="width:15%"><col style="width:15%"><col style="width:19%"><col style="width:14%"><col style="width:7%">
+            </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in balancesForGroup(g.id)" :key="b.id" :style="g.warna ? `background:${g.warna}` : ''">
-                <td><input type="text" :value="b.pic" class="cell-edit" style="width:90px;" @change="patchBalance(b, 'pic', ($event.target as HTMLInputElement).value)" /></td>
-                <td><input type="text" :value="b.rek" class="cell-edit" style="width:170px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchBalance(b, 'saldo', numFromInput($event))" /></td>
-                <td class="num"><input type="text" :value="(b.bisaDipakai ?? 0).toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchBalance(b, 'bisaDipakai', numFromInput($event))" /></td>
-                <td><input type="text" :value="b.ket" class="cell-edit" style="width:140px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
+                <td><input type="text" :value="b.pic" class="cell-edit" style="width:44px;" @change="patchBalance(b, 'pic', ($event.target as HTMLInputElement).value)" /></td>
+                <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
+                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'saldo', numFromInput($event))" /></td>
+                <td class="num"><input type="text" :value="(b.bisaDipakai ?? 0).toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'bisaDipakai', numFromInput($event))" /></td>
+                <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td>
-                  <select :value="b.grup" style="width:100px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
+                  <select :value="b.grup" style="width:90px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
                     <option :value="null">Tanpa Grup</option>
                     <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
                   </select>
@@ -180,20 +183,22 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
         </div>
       </div>
 
-      <div v-if="noGroupBalances.length">
-        <div style="font-weight:700;margin-bottom:6px;border-left:4px solid #ccc;padding-left:8px;">Tanpa Grup</div>
+      <div v-if="noGroupBalances.length" style="margin-bottom:10px;">
         <div class="table-wrap">
-          <table data-sheet="Tanpa Grup">
+          <table class="dense" data-sheet="Tanpa Grup">
+            <colgroup>
+              <col style="width:7%"><col style="width:23%"><col style="width:15%"><col style="width:15%"><col style="width:19%"><col style="width:14%"><col style="width:7%">
+            </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in noGroupBalances" :key="b.id">
-                <td><input type="text" :value="b.pic" class="cell-edit" style="width:90px;" @change="patchBalance(b, 'pic', ($event.target as HTMLInputElement).value)" /></td>
-                <td><input type="text" :value="b.rek" class="cell-edit" style="width:170px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchBalance(b, 'saldo', numFromInput($event))" /></td>
-                <td class="num"><input type="text" :value="(b.bisaDipakai ?? 0).toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchBalance(b, 'bisaDipakai', numFromInput($event))" /></td>
-                <td><input type="text" :value="b.ket" class="cell-edit" style="width:140px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
+                <td><input type="text" :value="b.pic" class="cell-edit" style="width:44px;" @change="patchBalance(b, 'pic', ($event.target as HTMLInputElement).value)" /></td>
+                <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
+                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'saldo', numFromInput($event))" /></td>
+                <td class="num"><input type="text" :value="(b.bisaDipakai ?? 0).toLocaleString('id-ID')" style="width:110px;text-align:right;" @change="patchBalance(b, 'bisaDipakai', numFromInput($event))" /></td>
+                <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td>
-                  <select :value="b.grup" style="width:100px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
+                  <select :value="b.grup" style="width:90px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
                     <option :value="null">Tanpa Grup</option>
                     <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
                   </select>
@@ -212,10 +217,13 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
 
       <div class="table-wrap" style="margin-top:6px;">
-        <table data-sheet="Total Bank">
+        <table class="dense" data-sheet="Total Bank">
+          <colgroup>
+            <col style="width:70%"><col style="width:15%"><col style="width:15%">
+          </colgroup>
           <tbody>
             <tr class="grand-total-row">
-              <td style="width:280px;">TOTAL BANK</td>
+              <td>TOTAL BANK</td>
               <td class="num">Rp {{ grandTotal.saldo.toLocaleString('id-ID') }}</td>
               <td class="num">Rp {{ grandTotal.bisaDipakai.toLocaleString('id-ID') }}</td>
             </tr>
@@ -224,7 +232,14 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
 
       <div v-if="!balances.length" class="empty-state">
-        Belum ada rekening bank. Tambahkan lewat form di atas.
+        Belum ada rekening bank. Tambahkan lewat form di bawah.
+      </div>
+
+      <div class="toolbar" style="margin-top:10px;">
+        <span class="gm-label">+ Tambah baris:</span>
+        <input type="text" v-model="newRow.pic" placeholder="PIC" style="width:120px;" />
+        <input type="text" v-model="newRow.rek" placeholder="Nama Rekening" style="width:180px;" />
+        <button class="btn" @click="addBalance">+ Tambah</button>
       </div>
     </div>
     </div>
@@ -237,7 +252,10 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total deposito: <b>Rp {{ totalDeposito.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
-        <table data-sheet="Deposito">
+        <table class="dense" data-sheet="Deposito">
+          <colgroup>
+            <col style="width:20%"><col style="width:16%"><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:19%"><col style="width:6%">
+          </colgroup>
           <thead><tr><th>Nama</th><th class="num">Nominal</th><th>Tgl Masuk</th><th>Rate</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!deposito.length"><td colspan="7" class="empty-state">Belum ada data deposito.</td></tr>
@@ -262,7 +280,10 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total hutang: <b>Rp {{ totalHutang.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
-        <table data-sheet="Hutang">
+        <table class="dense" data-sheet="Hutang">
+          <colgroup>
+            <col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:7%"><col style="width:13%"><col style="width:17%"><col style="width:18%"><col style="width:6%">
+          </colgroup>
           <thead><tr><th>Peminjam</th><th>Kreditur</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Pinjam</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!hutang.length"><td colspan="8" class="empty-state">Belum ada data hutang.</td></tr>
@@ -273,8 +294,10 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
               <td><input type="text" :value="h.rate" class="cell-edit" style="width:70px;" @change="patchRow('hutang', h, 'rate', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="date" :value="h.tglPinjam" style="width:130px;" @change="patchRow('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value || null)" /></td>
               <td>
-                <input type="date" :value="h.jatuhTempo" style="width:130px;" @change="patchRow('hutang', h, 'jatuhTempo', ($event.target as HTMLInputElement).value || null)" />
-                <span v-if="h.jatuhTempo && h.jatuhTempo < today" class="pill overdue">Lewat tempo</span>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <input type="date" :value="h.jatuhTempo" @change="patchRow('hutang', h, 'jatuhTempo', ($event.target as HTMLInputElement).value || null)" />
+                  <span v-if="h.jatuhTempo && h.jatuhTempo < today" class="pill overdue" style="margin-left:0;">Lewat tempo</span>
+                </div>
               </td>
               <td><input type="text" :value="h.ket" class="cell-edit" style="width:140px;" @change="patchRow('hutang', h, 'ket', ($event.target as HTMLInputElement).value)" /></td>
               <td><span class="row-del" @click="deleteRow('hutang', h.id)">✕</span></td>
@@ -291,7 +314,10 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
       </div>
       <div class="hint" style="margin-bottom:10px;">Total bayar: <b>Rp {{ totalBayar.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
-        <table data-sheet="Bayar">
+        <table class="dense" data-sheet="Bayar">
+          <colgroup>
+            <col style="width:9%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:25%"><col style="width:6%">
+          </colgroup>
           <thead><tr><th>PT</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!bayar.length"><td colspan="9" class="empty-state">Belum ada data bayar.</td></tr>
@@ -312,5 +338,27 @@ const totalSaldo = computed(() => balances.value.reduce((s, b) => s + (b.saldo |
     </div>
     </div>
     </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.rekap-grid table.dense {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+.rekap-grid table.dense thead th,
+.rekap-grid table.dense tbody td {
+  padding: 2px 6px;
+}
+.rekap-grid table.dense input,
+.rekap-grid table.dense select {
+  width: 100% !important;
+  box-sizing: border-box;
+  padding: 1px 4px;
+  height: 22px;
+  line-height: 1.2;
+  font-size: 11.5px;
+}
+</style>

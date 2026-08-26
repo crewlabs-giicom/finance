@@ -14,7 +14,7 @@
     "db:from-mysql": "node scripts/mysql-to-sqlite.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "12.11.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "html2canvas": "^1.4.1",

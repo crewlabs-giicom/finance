@@ -15,7 +15,8 @@ export const users = sqliteTable('users', {
 export const bankGroups = sqliteTable('bank_groups', {
   id: text('id').primaryKey(),
   nama: text('nama').notNull(),
-  warna: text('warna').default('#6C5CE7')
+  warna: text('warna').default('#6C5CE7'),
+  urutan: integer('urutan').notNull().default(0)
 })
 
 export const bankAccounts = sqliteTable('bank_accounts', {

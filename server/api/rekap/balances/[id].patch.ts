@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   if (body.rek !== undefined) patch.rek = String(body.rek)
   if (body.bisaDipakai !== undefined) patch.bisaDipakai = body.bisaDipakai === '' || body.bisaDipakai === null ? null : Number(body.bisaDipakai)
   if (body.ket !== undefined) patch.ket = String(body.ket)
-  if (body.grup !== undefined) patch.grup = String(body.grup)
+  if (body.grup !== undefined) patch.grup = body.grup || null
   if (Object.keys(patch).length === 0) throw createError({ statusCode: 400, statusMessage: 'Gak ada field yang diupdate.' })
   await db.update(bankBalances).set(patch).where(eq(bankBalances.id, id))
   return { ok: true }

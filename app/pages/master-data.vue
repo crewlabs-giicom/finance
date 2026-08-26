@@ -3,7 +3,7 @@ const api = useApi()
 const { load: loadGroups } = useGroups()
 const { lockYm, label: lockLabel, refresh: refreshLock, setLock } = usePeriodLock()
 
-type Group = { id: string; nama: string; warna: string | null }
+type Group = { id: string; nama: string; warna: string | null; urutan: number }
 type Account = { id: string; groupId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Npwp = { id: string; noNpwp: string; namaNpwp: string; nik: string | null; alamat: string | null }
 type Coa = { id: string; noCoa: string; namaCoa: string }
@@ -62,6 +62,21 @@ const addGroup = () => {
 const deleteGroup = (id: string) => {
   if (!confirm('Hapus grup ini? Data yang masih ikut grup ini tidak ikut terhapus, hanya jadi Tanpa Grup.')) return
   return run(() => api(`/api/master/groups/${id}`, { method: 'DELETE' }), 'Grup dihapus.')
+}
+const renameGroup = (g: Group, nama: string) => {
+  nama = nama.trim()
+  if (!nama || nama === g.nama) return
+  return run(() => api(`/api/master/groups/${g.id}`, { method: 'PATCH', body: { nama } }), 'Grup diperbarui.')
+}
+const moveGroup = (index: number, dir: -1 | 1) => {
+  const target = index + dir
+  if (target < 0 || target >= groups.value.length) return
+  const a = groups.value[index]!
+  const b = groups.value[target]!
+  return run(() => Promise.all([
+    api(`/api/master/groups/${a.id}`, { method: 'PATCH', body: { urutan: b.urutan } }),
+    api(`/api/master/groups/${b.id}`, { method: 'PATCH', body: { urutan: a.urutan } })
+  ]), 'Urutan grup diperbarui.')
 }
 
 const addAccount = () => {
@@ -181,8 +196,12 @@ function groupLabel(id: string | null) {
       </div>
       <div v-if="!groups.length" class="empty-state">Belum ada grup.</div>
       <div v-else class="chip-row">
-        <span v-for="g in groups" :key="g.id" class="chip" :style="{ background: g.warna || undefined, color: '#1e2433' }">
-          {{ g.nama }}
+        <span v-for="(g, i) in groups" :key="g.id" class="chip" :style="{ background: g.warna || undefined, color: '#1e2433' }">
+          <span class="chip-move-col">
+            <span class="chip-move" :class="{ disabled: i === 0 }" @click="moveGroup(i, -1)">▲</span>
+            <span class="chip-move" :class="{ disabled: i === groups.length - 1 }" @click="moveGroup(i, 1)">▼</span>
+          </span>
+          <input type="text" class="chip-edit" :value="g.nama" size="1" @change="renameGroup(g, ($event.target as HTMLInputElement).value)" />
           <span class="chip-del" @click="deleteGroup(g.id)">✕</span>
         </span>
       </div>

@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
       ? Number(body.bisaDipakai)
       : null,
     ket: body.ket || '',
-    grup: body.grup || ''
+    grup: body.grup || null
   }
   await db.insert(bankBalances).values(row)
   return row

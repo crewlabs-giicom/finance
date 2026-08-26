@@ -1,0 +1,1 @@
+ALTER TABLE `bank_groups` ADD `urutan` integer DEFAULT 0 NOT NULL;
