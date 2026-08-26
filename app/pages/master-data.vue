@@ -5,7 +5,7 @@ const { load: loadPics } = usePics()
 const { lockYm, label: lockLabel, refresh: refreshLock, setLock } = usePeriodLock()
 
 type Group = { id: string; nama: string; warna: string | null; urutan: number; picId: string | null }
-type Account = { id: string; groupId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
+type Account = { id: string; groupId: string | null; picId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Npwp = { id: string; noNpwp: string; namaNpwp: string; nik: string | null; alamat: string | null }
 type Coa = { id: string; noCoa: string; namaCoa: string }
 type Tag = { id: string; nama: string }
@@ -25,7 +25,7 @@ const userList = ref<UserRow[]>([])
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
 const newGroupNama = ref('')
-const newAcc = reactive({ groupId: '', bankType: 'BCA', namaRek: '', noRek: '' })
+const newAcc = reactive({ groupId: '', picId: '', bankType: 'BCA', namaRek: '', noRek: '' })
 const newNpwp = reactive({ noNpwp: '', namaNpwp: '', nik: '', alamat: '' })
 const newCoa = reactive({ noCoa: '', namaCoa: '' })
 const newTag = ref('')
@@ -121,7 +121,7 @@ const setUserPic = (u: UserRow, picId: string) =>
 const addAccount = () => {
   if (!newAcc.namaRek.trim() || !newAcc.noRek.trim()) return
   return run(async () => {
-    await api('/api/master/accounts', { method: 'POST', body: { ...newAcc, groupId: newAcc.groupId || null } })
+    await api('/api/master/accounts', { method: 'POST', body: { ...newAcc, groupId: newAcc.groupId || null, picId: newAcc.picId || null } })
     newAcc.namaRek = ''
     newAcc.noRek = ''
   }, 'Rekening ditambahkan.')
@@ -306,6 +306,10 @@ function groupLabel(id: string | null) {
           <option value="">Tanpa Grup</option>
           <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.nama }}</option>
         </select>
+        <select v-model="newAcc.picId">
+          <option value="">Tanpa PIC</option>
+          <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
+        </select>
         <input v-model="newAcc.namaRek" placeholder="Nama rekening" style="width:180px;" />
         <input v-model="newAcc.noRek" placeholder="No. rekening" style="width:160px;" @keyup.enter="addAccount" />
         <button class="btn" @click="addAccount">+ Tambah Rekening</button>
@@ -313,14 +317,20 @@ function groupLabel(id: string | null) {
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th></th><th>Bank</th><th>Grup</th><th>Nama Rekening</th><th>No. Rekening</th><th class="num">Saldo Awal</th></tr>
+            <tr><th></th><th>Bank</th><th>Grup</th><th>PIC</th><th>Nama Rekening</th><th>No. Rekening</th><th class="num">Saldo Awal</th></tr>
           </thead>
           <tbody>
-            <tr v-if="!accounts.length"><td colspan="6" class="empty-state">Belum ada rekening.</td></tr>
+            <tr v-if="!accounts.length"><td colspan="7" class="empty-state">Belum ada rekening.</td></tr>
             <tr v-for="a in accounts" :key="a.id">
               <td><span class="row-del" @click="deleteAccount(a.id)">✕</span></td>
               <td><span class="pill">{{ a.bankType }}</span></td>
               <td>{{ groupLabel(a.groupId) }}</td>
+              <td>
+                <select :value="a.picId" style="width:110px;" @change="patchAccount(a, { picId: ($event.target as HTMLSelectElement).value || null })">
+                  <option value="">Tanpa PIC</option>
+                  <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
+                </select>
+              </td>
               <td>{{ a.namaRek }}</td>
               <td>{{ a.noRek }}</td>
               <td class="num">

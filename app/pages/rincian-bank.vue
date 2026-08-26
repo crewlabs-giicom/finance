@@ -1,7 +1,8 @@
 <script setup lang="ts">
 
 const api = useApi()
-type Account = { id: string; groupId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
+const { pics, load: loadPics } = usePics()
+type Account = { id: string; groupId: string | null; picId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Txn = {
   id: string; accountId: string; tanggal: string; transaksi: string; cabang: string | null;
   debet: number; kredit: number; saldo: number; bankType: string | null;
@@ -19,6 +20,8 @@ const rowColors = ref<RowColor[]>([])
 const today = new Date()
 const filterMonth = ref(today.getMonth() + 1)
 const filterYear = ref(today.getFullYear())
+const filterPic = ref('') // '' = semua PIC
+const filterBank = ref('') // '' = semua bank
 
 async function loadAll() {
   ;[accounts.value, txns.value, tags.value, rowColors.value] = await Promise.all([
@@ -28,7 +31,18 @@ async function loadAll() {
     api('/api/row-colors')
   ])
 }
-await loadAll()
+await Promise.all([loadAll(), loadPics()])
+try {
+  const me = await api<{ picId: string | null }>('/api/auth/me')
+  if (me.picId) filterPic.value = me.picId
+} catch {}
+
+const visibleAccounts = computed(() =>
+  accounts.value.filter(a =>
+    (!filterPic.value || a.picId === filterPic.value) &&
+    (!filterBank.value || a.bankType === filterBank.value)
+  )
+)
 
 function txnsForAccount(accId: string) {
   const mm = String(filterMonth.value).padStart(2, '0')
@@ -203,11 +217,23 @@ async function onExport() {
       <select v-model.number="filterYear">
         <option v-for="y in [today.getFullYear()-2, today.getFullYear()-1, today.getFullYear(), today.getFullYear()+1]" :key="y" :value="y">{{ y }}</option>
       </select>
+      <span class="gm-label" style="margin-left:10px;">PIC:</span>
+      <select v-model="filterPic">
+        <option value="">Semua PIC</option>
+        <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
+      </select>
+      <span class="gm-label" style="margin-left:10px;">Bank:</span>
+      <select v-model="filterBank">
+        <option value="">Semua Bank</option>
+        <option value="BCA">BCA</option><option value="BRI">BRI</option>
+        <option value="MANDIRI">Mandiri</option><option value="OTHER">Lainnya</option>
+      </select>
     </div>
 
     <div v-if="!accounts.length" class="empty-state">Belum ada rekening bank. Tambahkan dulu lewat menu "Master Data".</div>
+    <div v-else-if="!visibleAccounts.length" class="empty-state">Gak ada rekening yang cocok sama filter ini.</div>
 
-    <div v-for="acc in accounts" :key="acc.id" class="panel">
+    <div v-for="acc in visibleAccounts" :key="acc.id" class="panel">
       <div class="panel-head">
         <h3><span class="pill">{{ acc.bankType }}</span> {{ acc.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ acc.noRek }})</span></h3>
       </div>

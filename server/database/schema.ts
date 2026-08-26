@@ -33,6 +33,7 @@ export const bankGroups = sqliteTable('bank_groups', {
 export const bankAccounts = sqliteTable('bank_accounts', {
   id: text('id').primaryKey(),
   groupId: text('group_id').references(() => bankGroups.id),
+  picId: text('pic_id').references(() => pics.id),
   bankType: text('bank_type').notNull(), // 'BCA' | 'BRI' | ...
   namaRek: text('nama_rek').notNull(),
   noRek: text('no_rek').notNull(),
