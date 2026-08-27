@@ -1,0 +1,1 @@
+ALTER TABLE `bank_txns` ADD `import_ref` text;

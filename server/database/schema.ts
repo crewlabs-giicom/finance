@@ -71,7 +71,10 @@ export const bankTxns = sqliteTable('bank_txns', {
   tag: text('tag').default(''),
   noteManual: text('note_manual'),
   checked: integer('checked', { mode: 'boolean' }).notNull().default(false),
-  manual: integer('manual', { mode: 'boolean' }).notNull().default(false)
+  manual: integer('manual', { mode: 'boolean' }).notNull().default(false),
+  // Referensi internal buat dedup import (mis. Journal No. BNI) — bukan field yang
+  // ditampilkan/diisi user, beda dari noBankManual (kolom "No Bank" yang keliatan di UI).
+  importRef: text('import_ref')
 })
 
 // ---------- Rincian MP (marketplace toko per grup) ----------

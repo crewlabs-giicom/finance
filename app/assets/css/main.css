@@ -132,6 +132,12 @@ td.num, th.num { text-align: right; }
 
 .cell-edit { min-width: 60px; }
 
+.tag-cell {
+  display: inline-block; min-height: 1.4em; padding: 4px 6px; border-radius: 6px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 12.5px;
+}
+.tag-cell:hover { border-color: var(--accent); }
+
 /* ---------- sidebar collapse ---------- */
 .sidebar { position: relative; transition: width .15s ease; }
 .sidebar.collapsed { width: 62px; }

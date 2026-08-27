@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { parseTagList } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -107,14 +108,23 @@ async function duplicateTxn(id: string) {
   closeColorMenu()
 }
 
+/** Posisi popup di-clamp biar gak kepotong tepi bawah/kanan viewport — dia position:fixed,
+ * jadi kalau kepotong, scroll halaman gak nolongin nampilin sisanya. */
+function clampMenuPos(evt: MouseEvent, menuWidth: number, menuHeight: number) {
+  const x = Math.min(evt.clientX, window.innerWidth - menuWidth - 8)
+  const y = Math.min(evt.clientY, window.innerHeight - menuHeight - 8)
+  return { x: Math.max(8, x), y: Math.max(8, y) }
+}
+
 // -- right click color menu --
 const colorMenu = reactive({ visible: false, x: 0, y: 0, targetId: '' as string })
 const COLORS = ['#FFF3B0', '#B7F0AD', '#AEE3F5', '#F5B7B1', '#D7BDE2', '']
 function openColorMenu(evt: MouseEvent, id: string) {
   evt.preventDefault()
+  const pos = clampMenuPos(evt, 180, 130)
   colorMenu.visible = true
-  colorMenu.x = evt.clientX
-  colorMenu.y = evt.clientY
+  colorMenu.x = pos.x
+  colorMenu.y = pos.y
   colorMenu.targetId = id
 }
 function closeColorMenu() { colorMenu.visible = false }
@@ -126,6 +136,31 @@ async function pickColor(color: string) {
   }
   await loadAll()
   closeColorMenu()
+}
+
+// -- klik buat pilih tag, bisa lebih dari satu (disimpen comma-separated) --
+const tagMenu = reactive({ visible: false, x: 0, y: 0, targetId: '' as string })
+function openTagMenu(evt: MouseEvent, id: string) {
+  evt.preventDefault()
+  evt.stopPropagation()
+  closeColorMenu()
+  const pos = clampMenuPos(evt, 170, Math.min(260, 40 + tags.value.length * 27))
+  tagMenu.visible = true
+  tagMenu.x = pos.x
+  tagMenu.y = pos.y
+  tagMenu.targetId = id
+}
+function closeTagMenu() { tagMenu.visible = false }
+function closeMenus() { closeColorMenu(); closeTagMenu() }
+const tagMenuSelected = computed(() => parseTagList(txns.value.find(x => x.id === tagMenu.targetId)?.tag))
+async function toggleTag(tagName: string) {
+  const t = txns.value.find(x => x.id === tagMenu.targetId)
+  if (!t) return
+  const list = parseTagList(t.tag)
+  const i = list.indexOf(tagName)
+  if (i >= 0) list.splice(i, 1)
+  else list.push(tagName)
+  await patchTxn(t, 'tag', list.join(','))
 }
 
 const expandedRows = reactive<Set<string>>(new Set())
@@ -185,7 +220,7 @@ async function onExport() {
 </script>
 
 <template>
-  <div ref="root" @click="closeColorMenu">
+  <div ref="root" @click="closeMenus">
     <div class="topbar">
       <div>
         <h2>Rincian Bank</h2>
@@ -198,13 +233,14 @@ async function onExport() {
       <div class="upload-box">
         <span class="gm-label">Import mutasi bank:</span>
         <label class="btn" style="cursor:pointer;">
-          {{ importing ? '⏳ Memproses…' : '📤 Upload CSV (BCA / BRI)' }}
+          {{ importing ? '⏳ Memproses…' : '📤 Upload CSV (BCA / BRI / BNI)' }}
           <input type="file" accept=".csv,text/csv" style="display:none;" :disabled="importing" @change="onCsvUpload" />
         </label>
       </div>
       <p class="hint">
-        Format BCA maupun BRI dideteksi otomatis dari isi file. Transaksi duplikat dan baris di periode terkunci dilewati,
-        lalu kolom Saldo dihitung ulang dari Saldo Awal rekening.
+        Format BCA, BRI, maupun BNI dideteksi otomatis dari isi file. Transaksi duplikat dan baris di periode terkunci dilewati,
+        lalu kolom Saldo dihitung ulang dari Saldo Awal rekening. Khusus file BNI (gak nyimpen nomor rekening di file-nya),
+        pastikan cuma satu rekening bertipe BNI yang terdaftar di Master Data.
       </p>
       <StatusBox :status="importStatus" />
     </div>
@@ -225,7 +261,7 @@ async function onExport() {
       <span class="gm-label" style="margin-left:10px;">Bank:</span>
       <select v-model="filterBank">
         <option value="">Semua Bank</option>
-        <option value="BCA">BCA</option><option value="BRI">BRI</option>
+        <option value="BCA">BCA</option><option value="BRI">BRI</option><option value="BNI">BNI</option>
         <option value="MANDIRI">Mandiri</option><option value="OTHER">Lainnya</option>
       </select>
     </div>
@@ -281,10 +317,9 @@ async function onExport() {
               <td class="num">{{ t.kredit ? t.kredit.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.saldo.toLocaleString('id-ID') }}</td>
               <td>
-                <select :value="t.tag" style="width:90px;" @change="patchTxn(t, 'tag', ($event.target as HTMLSelectElement).value)">
-                  <option value="">-</option>
-                  <option v-for="tg in tags" :key="tg.id" :value="tg.nama">{{ tg.nama }}</option>
-                </select>
+                <span class="tag-cell" style="width:90px;" @click="openTagMenu($event, t.id)" title="Klik buat pilih tag (bisa lebih dari satu)">
+                  {{ t.tag ? t.tag.split(',').join(', ') : '-' }}
+                </span>
               </td>
               <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:110px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="t.ketTransaksiManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'ketTransaksiManual', ($event.target as HTMLInputElement).value)" /></td>
@@ -318,6 +353,20 @@ async function onExport() {
         >✕</span>
       </div>
       <button class="btn secondary" style="width:100%;font-size:12px;" @click="duplicateTxn(colorMenu.targetId)">🔁 Duplicate baris</button>
+    </div>
+
+    <div
+      v-if="tagMenu.visible"
+      class="panel tag-picker-menu"
+      style="position:fixed;z-index:50;padding:8px;width:170px;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.18);"
+      :style="{ top: tagMenu.y + 'px', left: tagMenu.x + 'px' }"
+      @click.stop
+    >
+      <div v-if="!tags.length" class="hint">Belum ada tag. Tambahin dulu di Master Data.</div>
+      <label v-for="tg in tags" :key="tg.id" style="display:flex;align-items:center;gap:6px;padding:4px 2px;font-size:12.5px;cursor:pointer;">
+        <input type="checkbox" :checked="tagMenuSelected.includes(tg.nama)" @change="toggleTag(tg.nama)" />
+        {{ tg.nama }}
+      </label>
     </div>
   </div>
 </template>

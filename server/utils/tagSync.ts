@@ -1,20 +1,28 @@
 import { eq } from 'drizzle-orm'
 import { bankTxns, bankAccounts, ppnRows, entRows } from '../database/schema'
 
-// Tag "PPH 23" / "PP 23" / "PPH 4" / "21 BP" / "Final" di Rincian Bank -> otomatis
-// sinkron ke satu baris List Pajak. Tag "Ent" -> otomatis sinkron ke satu baris
-// Entertainment. Ganti tag / edit nominal-tanggal-keterangan transaksi otomatis
-// update baris terhubung (dilacak lewat sourceTxnId, gak pernah bikin baris dobel).
+// Satu transaksi boleh punya lebih dari satu tag (disimpen comma-separated di kolom
+// "tag", mis. "PPH 23,Ent"). Tag "PPH 23" / "PP 23" / "PPH 4" / "21 BP" / "Final" di
+// Rincian Bank -> otomatis sinkron ke satu baris List Pajak. Tag "Ent" -> otomatis
+// sinkron ke satu baris Entertainment — keduanya bisa aktif bareng buat transaksi yang
+// sama. Ganti tag / edit nominal-tanggal-keterangan transaksi otomatis update baris
+// terhubung (dilacak lewat sourceTxnId, gak pernah bikin baris dobel).
 const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final'])
 const ENT_TAG = 'Ent'
 
-function computeTagFormula(tag: string, debet: number) {
+export function parseTagList(raw: string | null | undefined): string[] {
+  return (raw || '').split(',').map(s => s.trim()).filter(Boolean)
+}
+
+/** Beberapa tag pajak bisa aktif sekaligus — tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. */
+function computeTagFormula(tags: string[], debet: number) {
   const base = debet / 0.11
-  if (tag === 'PPH 23') return { pph23: Math.round(base * 0.02), pph23_4a2: null, pph21bp: null }
-  if (tag === 'PP 23') return { pph23: null, pph23_4a2: Math.round(base * 0.005), pph21bp: null }
-  if (tag === 'PPH 4') return { pph23: null, pph23_4a2: Math.round(base * 0.10), pph21bp: null }
-  if (tag === '21 BP') return { pph23: null, pph23_4a2: null, pph21bp: Math.round(base * 0.025) }
-  return { pph23: null, pph23_4a2: null, pph21bp: null }
+  let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null
+  if (tags.includes('PPH 23')) pph23 = Math.round(base * 0.02)
+  if (tags.includes('PP 23')) pph23_4a2 = Math.round(base * 0.005)
+  if (tags.includes('PPH 4')) pph23_4a2 = Math.round(base * 0.10)
+  if (tags.includes('21 BP')) pph21bp = Math.round(base * 0.025)
+  return { pph23, pph23_4a2, pph21bp }
 }
 
 function hasManualPpnData(r: typeof ppnRows.$inferSelect) {
@@ -43,12 +51,13 @@ export async function syncTagDerivedRows(txnId: string) {
   const groupId = acc?.groupId ?? null
   const desc = t.ketTransaksiManual || t.transaksi || ''
   const amount = t.debet || t.kredit || 0
-  const isPajak = PAJAK_TAGS.has(t.tag || '')
-  const isEnt = t.tag === ENT_TAG
+  const tagList = parseTagList(t.tag)
+  const isPajak = tagList.some(tag => PAJAK_TAGS.has(tag))
+  const isEnt = tagList.includes(ENT_TAG)
 
   const [existingPpn] = await db.select().from(ppnRows).where(eq(ppnRows.sourceTxnId, txnId)).limit(1)
   if (isPajak) {
-    const formula = computeTagFormula(t.tag || '', amount)
+    const formula = computeTagFormula(tagList, amount)
     if (existingPpn) {
       await db.update(ppnRows).set({
         tanggal: t.tanggal, description: desc, debet: amount, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula

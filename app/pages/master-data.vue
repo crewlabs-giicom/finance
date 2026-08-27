@@ -299,7 +299,7 @@ function groupLabel(id: string | null) {
       <div class="panel-head"><h3>🏦 Rekening Bank</h3></div>
       <div class="toolbar">
         <select v-model="newAcc.bankType">
-          <option value="BCA">BCA</option><option value="BRI">BRI</option>
+          <option value="BCA">BCA</option><option value="BRI">BRI</option><option value="BNI">BNI</option>
           <option value="MANDIRI">Mandiri</option><option value="OTHER">Lainnya</option>
         </select>
         <select v-model="newAcc.groupId">

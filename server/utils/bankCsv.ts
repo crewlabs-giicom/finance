@@ -12,6 +12,10 @@ export type ParsedTxn = {
   debet: number
   kredit: number
   saldo?: number
+  // Referensi internal (mis. Journal No. BNI) dipakai CUMA buat dedup — bukan "No Bank"
+  // yang keliatan di UI. Biar baris beda yang kebetulan tanggal/teks/nominalnya sama
+  // (mis. biaya admin BNI yang keulang beberapa kali sehari) gak ketuker jadi "duplikat".
+  importRef?: string
 }
 
 /** CSV parser quote-aware, biar koma di dalam tanda kutip tidak memotong kolom. */
@@ -41,11 +45,12 @@ export function csvParseLines(text: string): string[][] {
   return lines.filter(r => r.some(f => f !== ''))
 }
 
-export function detectCsvFormat(rows: string[][]): 'bca' | 'bri' | null {
+export function detectCsvFormat(rows: string[][]): 'bca' | 'bri' | 'bni' | null {
   const top = rows.slice(0, 10).map(r => r.join('|')).join('\n')
   if (/No\.\s*rekening/i.test(top)) return 'bca'
   const header = (rows[0] || []).map(h => h.trim().toUpperCase())
   if (header.includes('NOREK') && header.includes('MUTASI_DEBET')) return 'bri'
+  if (header.includes('POST DATE') && header.includes('DESCRIPTION') && header.includes('DEBIT')) return 'bni'
   return null
 }
 
@@ -153,6 +158,40 @@ export function parseBriCsv(rows: string[][]): ParsedTxn[] {
   return txns
 }
 
+/**
+ * BNI: "Transaction Inquiry" export — Post Date | Value Date | Branch | Journal No. |
+ * Description | Debit | Credit. Gak nyimpen nomor rekening di file-nya sama sekali
+ * (beda dari BCA/BRI), jadi rekening tujuan ditentuin dari tipe akun "BNI" yang
+ * terdaftar di Master Data, bukan dari isi file.
+ */
+export function parseBniCsv(rows: string[][]): ParsedTxn[] {
+  const header = (rows[0] || []).map(h => h.trim().toUpperCase())
+  const idx: Record<string, number> = {}
+  header.forEach((h, i) => { idx[h] = i })
+
+  const txns: ParsedTxn[] = []
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]
+    if (!r) continue
+    const postDateRaw = (r[idx['POST DATE']!] || '').trim()
+    const dm = postDateRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)
+    if (!dm) continue
+    let [, d, mo, y] = dm as unknown as [string, string, string, string]
+    if (y.length === 2) y = (parseInt(y, 10) < 70 ? '20' : '19') + y
+    const tanggal = `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
+
+    const transaksi = (r[idx['DESCRIPTION']!] || '').replace(/\s+/g, ' ').trim()
+    const cabang = (r[idx['BRANCH']!] || '').trim()
+    const debet = parseFloat((r[idx['DEBIT']!] || '0').replace(/,/g, '')) || 0
+    const kredit = parseFloat((r[idx['CREDIT']!] || '0').replace(/,/g, '')) || 0
+    const importRef = (r[idx['JOURNAL NO.']!] ?? r[idx['JOURNAL NO']!] ?? '').trim()
+    if (!transaksi && !debet && !kredit) continue
+
+    txns.push({ tanggal, transaksi, cabang, debet, kredit, importRef })
+  }
+  return txns
+}
+
 // Pola teks mutasi BCA yang bisa dipecah otomatis jadi "Ket Transaksi".
 const KET_TRANSAKSI_RULES: { re: RegExp; get: (m: RegExpMatchArray) => string }[] = [
   { re: /^TRSF\s+E-BANKING\s+(?:CR|DB)\s+\d+\/FTSCY\/WS\d+\s+[\d.,]+\s+(.+)$/i, get: m => m[1]! },
@@ -176,4 +215,14 @@ export function deriveKetTransaksi(raw: string | null | undefined): string {
 /** Kunci dedup transaksi — sama persis dengan mpTxnDupKey() di app lama. */
 export function txnDupKey(t: { accountId: string; tanggal: string; transaksi: string; debet: number; kredit: number }) {
   return `${t.accountId}|${t.tanggal}|${t.transaksi}|${t.debet}|${t.kredit}`
+}
+
+/**
+ * Varian txnDupKey yang nyelipin referensi internal (importRef) — dipakai buat
+ * format kayak BNI, yang bisa punya beberapa baris beda (mis. biaya admin) dengan
+ * tanggal/teks/nominal identik dalam sehari. Cuma dipakai kalau ref-nya keisi;
+ * BCA/BRI (importRef selalu kosong pas import) sama sekali gak kepengaruh.
+ */
+export function txnDupKeyWithRef(t: { accountId: string; tanggal: string; transaksi: string; debet: number; kredit: number }, ref: string) {
+  return `${txnDupKey(t)}|${ref}`
 }

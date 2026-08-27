@@ -32,7 +32,16 @@ const uploadGroup = ref('')
 const uploading = ref(false)
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
-const addForm = reactive({ tanggal: '', description: '', code: '', store: '', tags: '', debet: '', kredit: '' })
+type AddForm = { tanggal: string; description: string; code: string; store: string; tags: string; debet: string; kredit: string }
+const addForms = reactive<Record<string, AddForm>>({})
+function addFormKey(groupId: string | null, coaId: string | null) {
+  return `${groupId || ''}|${coaId || ''}`
+}
+function toggleAddForm(groupId: string | null, coaId: string | null) {
+  const key = addFormKey(groupId, coaId)
+  if (addForms[key]) delete addForms[key]
+  else addForms[key] = { tanggal: '', description: '', code: '', store: '', tags: '', debet: '', kredit: '' }
+}
 
 async function loadAll() {
   ;[rows.value, coas.value, lawan.value] = await Promise.all([
@@ -45,7 +54,10 @@ async function loadAll() {
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 
-const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`)
+// filterMonth === 0 artinya "Semua Bulan" — prefix-nya cuma tahun aja.
+const monthPrefix = computed(() =>
+  filterMonth.value === 0 ? `${filterYear.value}` : `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`
+)
 
 function partnersOf(rowId: string) {
   const ids = lawan.value.filter(l => l.rowId === rowId).map(l => l.partnerId)
@@ -120,19 +132,21 @@ async function removeLawan(r: AvpRow, partnerId: string) {
   }
 }
 
-async function addRow() {
-  if (!addForm.tanggal) { status.value = { type: 'err', msg: 'Isi tanggal dulu.' }; return }
-  if (!uploadCoa.value) { status.value = { type: 'err', msg: 'Pilih COA dulu di bagian atas.' }; return }
+async function addRowFor(groupId: string | null, coaId: string | null) {
+  const key = addFormKey(groupId, coaId)
+  const f = addForms[key]
+  if (!f) return
+  if (!f.tanggal) { status.value = { type: 'err', msg: 'Isi tanggal dulu.' }; return }
   try {
     await api('/api/avp', {
       method: 'POST',
       body: {
-        coaId: uploadCoa.value, groupId: uploadGroup.value || null, tanggal: addForm.tanggal,
-        description: addForm.description, code: addForm.code, store: addForm.store, tags: addForm.tags,
-        debet: parseNum(addForm.debet), kredit: parseNum(addForm.kredit)
+        coaId, groupId, tanggal: f.tanggal,
+        description: f.description, code: f.code, store: f.store, tags: f.tags,
+        debet: parseNum(f.debet), kredit: parseNum(f.kredit)
       }
     })
-    Object.assign(addForm, { tanggal: '', description: '', code: '', store: '', tags: '', debet: '', kredit: '' })
+    delete addForms[key]
     await loadAll()
     status.value = { type: 'ok', msg: 'Baris ditambahkan.' }
   } catch (e: any) {
@@ -273,22 +287,9 @@ async function onExport() {
         </label>
       </div>
       <p class="hint">Wajib pilih COA dulu (Grup opsional). File butuh kolom Date, Code, Store, Description, Tags, Debet, Kredit.</p>
-
-      <div class="toolbar" style="margin-top:10px;">
-        <span class="gm-label">+ Tambah manual:</span>
-        <input v-model="addForm.tanggal" type="date" />
-        <input v-model="addForm.description" placeholder="Description…" style="width:180px;" />
-        <input v-model="addForm.code" placeholder="Code" style="width:90px;" />
-        <input v-model="addForm.store" placeholder="Store" style="width:110px;" />
-        <input v-model="addForm.tags" placeholder="Tags" style="width:90px;" />
-        <input v-model="addForm.debet" placeholder="Debet" style="width:100px;text-align:right;" />
-        <input v-model="addForm.kredit" placeholder="Kredit" style="width:100px;text-align:right;" />
-        <button class="btn" @click="addRow">+ Tambah</button>
-      </div>
-      <p class="hint">Tambah manual memakai COA &amp; Grup yang dipilih di atas.</p>
     </div>
 
-    <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear">
+    <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear" allow-all-months>
       <span class="gm-label" style="margin-left:10px;">Grup:</span>
       <select v-model="filterGroup">
         <option value="">Semua grup</option>
@@ -313,7 +314,23 @@ async function onExport() {
       </div>
 
       <div v-for="cg in sec.coaGroups" :key="cg.coaId" style="margin-bottom:14px;">
-        <div class="gm-label" style="margin-bottom:6px;">{{ cg.label }}</div>
+        <div class="gm-label" style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+          {{ cg.label }}
+          <button
+            class="btn secondary no-export" style="padding:2px 9px;font-size:11px;"
+            @click="toggleAddForm(sec.id, cg.coaId || null)"
+          >{{ addForms[addFormKey(sec.id, cg.coaId || null)] ? '✕ Batal' : '+ Tambah' }}</button>
+        </div>
+        <div v-if="addForms[addFormKey(sec.id, cg.coaId || null)]" class="toolbar no-export" style="margin-bottom:8px;">
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].tanggal" type="date" />
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].description" placeholder="Description…" style="width:180px;" />
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].code" placeholder="Code" style="width:90px;" />
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].store" placeholder="Store" style="width:110px;" />
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].tags" placeholder="Tags" style="width:90px;" />
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].debet" placeholder="Debet" style="width:100px;text-align:right;" />
+          <input v-model="addForms[addFormKey(sec.id, cg.coaId || null)].kredit" placeholder="Kredit" style="width:100px;text-align:right;" />
+          <button class="btn" @click="addRowFor(sec.id, cg.coaId || null)">+ Tambah</button>
+        </div>
         <div class="table-wrap">
           <table class="dense" :data-sheet="`${sec.nama} ${cg.label}`">
             <thead>

@@ -53,6 +53,11 @@ export function parseDateShort(str: string): string | null {
   return `${y}-${mo}-${d}`
 }
 
+/** Satu transaksi Rincian Bank boleh punya beberapa tag, disimpen comma-separated. */
+export function parseTagList(raw: string | null | undefined): string[] {
+  return (raw || '').split(',').map(s => s.trim()).filter(Boolean)
+}
+
 // Rumus "Bisa Dipakai" (Rekap Saldo): IF(saldo>12000000, MROUND(saldo,1000000)-12000000, 0)
 // Cermin dari server/utils/bisaDipakai.ts — dipakai buat update tampilan lokal secara instan
 // sebelum data dari server diambil ulang.
