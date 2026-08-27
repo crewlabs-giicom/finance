@@ -204,7 +204,8 @@ async function onCsvUpload(evt: Event) {
     const csv = await file.text()
     const res = await api<{
       format: string; rekening: string; imported: number; duplikat: number
-      terkunci: number; rekeningTidakTerdaftar: number; tanggalTerbaru: string | null
+      terkunci: number; rekeningTidakTerdaftar: number; rekeningTidakTerdaftarNoRek: string[]
+      tanggalTerbaru: string | null
     }>('/api/bank-txns/import-csv', { method: 'POST', body: { csv } })
 
     await loadAll()
@@ -219,7 +220,9 @@ async function onCsvUpload(evt: Event) {
 
     let msg = `${res.format.toUpperCase()} · ${res.rekening}: ${res.imported} transaksi baru, ${res.duplikat} duplikat dilewati`
     if (res.terkunci) msg += `, ${res.terkunci} dilewati karena periode terkunci`
-    if (res.rekeningTidakTerdaftar) msg += `, ${res.rekeningTidakTerdaftar} baris rekeningnya belum terdaftar`
+    if (res.rekeningTidakTerdaftar) {
+      msg += `, ${res.rekeningTidakTerdaftar} baris rekeningnya belum terdaftar (No. Rek: ${res.rekeningTidakTerdaftarNoRek.join(', ')})`
+    }
     importStatus.value = { type: res.imported ? 'ok' : 'err', msg: msg + '.' }
   } catch (e: any) {
     importStatus.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal import CSV.' }
@@ -303,9 +306,6 @@ async function onExport() {
         <table :data-sheet="acc.namaRek">
           <thead>
             <tr>
-              <th class="no-export"></th><th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
-              <th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo</th>
-              <th>Tag</th><th>No Bank</th><th>Ket Transaksi</th><th>Catatan</th>
               <th class="no-export">
                 <input
                   type="checkbox"
@@ -314,6 +314,10 @@ async function onExport() {
                   title="Pilih semua"
                 />
               </th>
+              <th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
+              <th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo</th>
+              <th>Tag</th><th>No Bank</th><th>Ket Transaksi</th><th>Catatan</th>
+              <th class="no-export"></th>
             </tr>
           </thead>
           <tbody>
@@ -325,7 +329,7 @@ async function onExport() {
               @contextmenu="openColorMenu($event, t.id)"
               title="Klik kanan buat warnain / duplicate baris"
             >
-              <td><input type="checkbox" :checked="t.checked" @change="patchTxn(t, 'checked', ($event.target as HTMLInputElement).checked)" /></td>
+              <td class="no-export"><input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" /></td>
               <td>{{ i + 1 }}</td>
               <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>{{ t.tanggal }}</td>
@@ -349,10 +353,7 @@ async function onExport() {
                 ></textarea>
               </td>
               <td><input type="text" :value="t.noteManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'noteManual', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="no-export">
-                <input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" />
-                <span class="row-del" @click="deleteTxn(t.id)">✕</span>
-              </td>
+              <td class="no-export"><span class="row-del" @click="deleteTxn(t.id)">✕</span></td>
             </tr>
           </tbody>
         </table>

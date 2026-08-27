@@ -18,6 +18,15 @@ export type ParsedTxn = {
   importRef?: string
 }
 
+/**
+ * Nol di depan nomor rekening kadang ilang waktu bank nulis kolom NOREK sebagai angka
+ * (ketauan dari file BRI: nama filenya "..._057601020202308_..." tapi isi kolom NOREK-nya
+ * cuma "57601020202308"). Dibanding apa adanya biar rekening yang beneran sama tetap kedetect.
+ */
+export function normalizeNoRek(v: string | null | undefined): string {
+  return String(v ?? '').trim().replace(/^0+(?=\d)/, '')
+}
+
 /** CSV parser quote-aware, biar koma di dalam tanda kutip tidak memotong kolom. */
 export function csvParseLines(text: string): string[][] {
   const lines: string[][] = []

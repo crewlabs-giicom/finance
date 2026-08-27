@@ -1,5 +1,5 @@
 import { bankAccounts, bankTxns } from '../../database/schema'
-import { csvParseLines, detectCsvFormat, deriveKetTransaksi, parseBcaCsv, parseBniCsv, parseBriCsv, txnDupKey, txnDupKeyWithRef } from '../../utils/bankCsv'
+import { csvParseLines, detectCsvFormat, deriveKetTransaksi, normalizeNoRek, parseBcaCsv, parseBniCsv, parseBriCsv, txnDupKey, txnDupKeyWithRef } from '../../utils/bankCsv'
 
 /**
  * Import mutasi bank dari CSV BCA, BRI, atau BNI.
@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
 
   const toInsert: typeof bankTxns.$inferInsert[] = []
   const touchedAccounts = new Map<string, number | null>()
+  const noAccountNoRek = new Set<string>()
   let dup = 0, locked = 0, noAccount = 0
 
   function push(acc: typeof accounts[number], t: { tanggal: string; transaksi: string; cabang: string; debet: number; kredit: number; importRef?: string }, saldoAwal: number | null) {
@@ -55,7 +56,7 @@ export default defineEventHandler(async (event) => {
     if (!parsed.noRek) {
       throw createError({ statusCode: 400, statusMessage: 'Gak nemu nomor rekening di file CSV ini — pastikan file mutasi asli dari BCA.' })
     }
-    const acc = accounts.find(a => a.noRek === parsed.noRek)
+    const acc = accounts.find(a => normalizeNoRek(a.noRek) === normalizeNoRek(parsed.noRek))
     if (!acc) {
       throw createError({
         statusCode: 404,
@@ -71,8 +72,8 @@ export default defineEventHandler(async (event) => {
     }
     const namaRek = new Set<string>()
     for (const t of parsed) {
-      const acc = accounts.find(a => a.noRek === t.noRek)
-      if (!acc) { noAccount++; continue }
+      const acc = accounts.find(a => normalizeNoRek(a.noRek) === normalizeNoRek(t.noRek))
+      if (!acc) { noAccount++; noAccountNoRek.add(t.noRek); continue }
       push(acc, { tanggal: t.tanggal, transaksi: t.transaksi, cabang: t.cabang, debet: t.debet, kredit: t.kredit }, null)
       namaRek.add(`${acc.namaRek} (${acc.noRek})`)
     }
@@ -118,6 +119,7 @@ export default defineEventHandler(async (event) => {
     duplikat: dup,
     terkunci: locked,
     rekeningTidakTerdaftar: noAccount,
+    rekeningTidakTerdaftarNoRek: [...noAccountNoRek],
     lockYm,
     tanggalTerbaru: tanggalBaru.at(-1) || null
   }
