@@ -27,6 +27,7 @@ const gudangStatus = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 const financeStatus = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
 const addForm = reactive({ tanggal: '', namaPengirim: '', namaPenerima: '', invGii: '', noWaybill: '', biaya: '', keperluan: '' })
+const showGudangAddForm = ref(false)
 
 async function loadAll() {
   ;[gudang.value, finance.value] = await Promise.all([
@@ -200,6 +201,7 @@ async function addGudang() {
       body: { ...addForm, noWaybill: normWb(addForm.noWaybill), biaya: parseNum(addForm.biaya), tanggal: addForm.tanggal || null }
     })
     Object.assign(addForm, { tanggal: '', namaPengirim: '', namaPenerima: '', invGii: '', noWaybill: '', biaya: '', keperluan: '' })
+    showGudangAddForm.value = false
     await loadAll()
     gudangStatus.value = { type: 'ok', msg: 'Baris ditambahkan.' }
   } catch (e: any) {
@@ -295,18 +297,6 @@ async function onExport() {
           </div>
           <p class="hint">Kolom: Tanggal, Nama Pengirim, Nama Penerima, INV GII, No.Waybill, Biaya Ongkos Kirim, Keperluan.</p>
           <StatusBox :status="gudangStatus" />
-
-          <div class="toolbar" style="margin-top:8px;">
-            <span class="gm-label">+ Tambah manual:</span>
-            <input v-model="addForm.tanggal" type="date" />
-            <input v-model="addForm.namaPengirim" placeholder="Nama Pengirim" style="width:120px;" />
-            <input v-model="addForm.namaPenerima" placeholder="Nama Penerima" style="width:120px;" />
-            <input v-model="addForm.invGii" placeholder="INV GII" style="width:100px;" />
-            <input v-model="addForm.noWaybill" placeholder="No. Waybill" style="width:130px;" />
-            <input v-model="addForm.biaya" placeholder="Biaya" style="width:100px;text-align:right;" />
-            <input v-model="addForm.keperluan" placeholder="Keperluan" style="width:120px;" />
-            <button class="btn" @click="addGudang">+ Tambah</button>
-          </div>
         </div>
 
         <div>
@@ -338,7 +328,20 @@ async function onExport() {
     <div class="panel">
       <div class="panel-head">
         <h3>📦 Data Gudang ({{ visibleGudang.length }} baris)</h3>
-        <button v-if="multiGudang.selectedIds.size" class="btn danger no-export" @click="deleteSelected('gudang')">🗑 Hapus {{ multiGudang.selectedIds.size }} Terpilih</button>
+        <div style="display:flex;gap:8px;">
+          <button v-if="multiGudang.selectedIds.size" class="btn danger no-export" @click="deleteSelected('gudang')">🗑 Hapus {{ multiGudang.selectedIds.size }} Terpilih</button>
+          <button class="btn secondary no-export" @click="showGudangAddForm = !showGudangAddForm">{{ showGudangAddForm ? '✕ Batal' : '+ Tambah' }}</button>
+        </div>
+      </div>
+      <div v-if="showGudangAddForm" class="toolbar no-export" style="margin-bottom:8px;">
+        <input v-model="addForm.tanggal" type="date" />
+        <input v-model="addForm.namaPengirim" placeholder="Nama Pengirim" style="width:120px;" />
+        <input v-model="addForm.namaPenerima" placeholder="Nama Penerima" style="width:120px;" />
+        <input v-model="addForm.invGii" placeholder="INV GII" style="width:100px;" />
+        <input v-model="addForm.noWaybill" placeholder="No. Waybill" style="width:130px;" />
+        <input v-model="addForm.biaya" placeholder="Biaya" style="width:100px;text-align:right;" />
+        <input v-model="addForm.keperluan" placeholder="Keperluan" style="width:120px;" />
+        <button class="btn" @click="addGudang">+ Tambah</button>
       </div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Data Gudang">
