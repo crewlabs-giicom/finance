@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { parseTagList } from '~/utils/format'
+import { autoGrow, parseTagList } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -19,8 +19,12 @@ const tags = ref<Tag[]>([])
 const rowColors = ref<RowColor[]>([])
 
 const today = new Date()
-const filterMonth = ref(today.getMonth() + 1)
-const filterYear = ref(today.getFullYear())
+function pad2(n: number) { return String(n).padStart(2, '0') }
+function firstOfMonth(y: number, m: number) { return `${y}-${pad2(m)}-01` }
+function lastOfMonth(y: number, m: number) { return `${y}-${pad2(m)}-${pad2(new Date(y, m, 0).getDate())}` }
+
+const filterDateFrom = ref(firstOfMonth(today.getFullYear(), today.getMonth() + 1))
+const filterDateTo = ref(lastOfMonth(today.getFullYear(), today.getMonth() + 1))
 const filterPic = ref('') // '' = semua PIC
 const filterBank = ref('') // '' = semua bank
 
@@ -46,10 +50,8 @@ const visibleAccounts = computed(() =>
 )
 
 function txnsForAccount(accId: string) {
-  const mm = String(filterMonth.value).padStart(2, '0')
-  const prefix = `${filterYear.value}-${mm}-`
   return txns.value
-    .filter(t => t.accountId === accId && t.tanggal?.startsWith(prefix))
+    .filter(t => t.accountId === accId && t.tanggal >= filterDateFrom.value && t.tanggal <= filterDateTo.value)
     .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : 0))
 }
 
@@ -86,6 +88,26 @@ async function deleteTxn(id: string) {
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal hapus transaksi.')
   }
+}
+
+const multi = useMultiSelect()
+const selectedIds = multi.selectedIds
+async function deleteSelected() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  if (!confirm(`Hapus ${ids.length} transaksi terpilih?`)) return
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      await api(`/api/bank-txns/${id}`, { method: 'DELETE' })
+      selectedIds.delete(id)
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  if (fail) alert(`${ok} transaksi dihapus, ${fail} gagal (kemungkinan periode terkunci).`)
 }
 
 async function patchTxn(t: Txn, field: string, value: any) {
@@ -163,13 +185,6 @@ async function toggleTag(tagName: string) {
   await patchTxn(t, 'tag', list.join(','))
 }
 
-const expandedRows = reactive<Set<string>>(new Set())
-function toggleExpand(id: string) {
-  expandedRows.has(id) ? expandedRows.delete(id) : expandedRows.add(id)
-}
-
-const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
-
 // -- import CSV mutasi bank --
 // Parsing & dedup dikerjakan di server (server/api/bank-txns/import-csv.post.ts),
 // halaman ini cuma mengirim isi file mentahnya.
@@ -196,8 +211,10 @@ async function onCsvUpload(evt: Event) {
 
     // Lompat ke bulan data terbaru supaya hasil import langsung kelihatan.
     if (res.tanggalTerbaru) {
-      filterYear.value = +res.tanggalTerbaru.slice(0, 4)
-      filterMonth.value = +res.tanggalTerbaru.slice(5, 7)
+      const y = +res.tanggalTerbaru.slice(0, 4)
+      const m = +res.tanggalTerbaru.slice(5, 7)
+      filterDateFrom.value = firstOfMonth(y, m)
+      filterDateTo.value = lastOfMonth(y, m)
     }
 
     let msg = `${res.format.toUpperCase()} · ${res.rekening}: ${res.imported} transaksi baru, ${res.duplikat} duplikat dilewati`
@@ -226,6 +243,7 @@ async function onExport() {
         <h2>Rincian Bank</h2>
         <p>Detail mutasi transaksi per rekening bank, lengkap dengan Tag, No Bank, Ket Transaksi, dan Catatan.</p>
       </div>
+      <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
@@ -247,12 +265,9 @@ async function onExport() {
 
     <div class="toolbar">
       <span class="gm-label">Tampilkan:</span>
-      <select v-model.number="filterMonth">
-        <option v-for="(m, i) in months" :key="m" :value="i + 1">{{ m }}</option>
-      </select>
-      <select v-model.number="filterYear">
-        <option v-for="y in [today.getFullYear()-2, today.getFullYear()-1, today.getFullYear(), today.getFullYear()+1]" :key="y" :value="y">{{ y }}</option>
-      </select>
+      <input type="date" v-model="filterDateFrom" />
+      <span class="gm-label">s/d</span>
+      <input type="date" v-model="filterDateTo" />
       <span class="gm-label" style="margin-left:10px;">PIC:</span>
       <select v-model="filterPic">
         <option value="">Semua PIC</option>
@@ -290,7 +305,15 @@ async function onExport() {
             <tr>
               <th class="no-export"></th><th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
               <th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo</th>
-              <th>Tag</th><th>No Bank</th><th>Ket Transaksi</th><th>Catatan</th><th></th>
+              <th>Tag</th><th>No Bank</th><th>Ket Transaksi</th><th>Catatan</th>
+              <th class="no-export">
+                <input
+                  type="checkbox"
+                  :checked="txnsForAccount(acc.id).length > 0 && txnsForAccount(acc.id).every(t => selectedIds.has(t.id))"
+                  @change="multi.toggleAll(txnsForAccount(acc.id).map(t => t.id))"
+                  title="Pilih semua"
+                />
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -304,11 +327,7 @@ async function onExport() {
             >
               <td><input type="checkbox" :checked="t.checked" @change="patchTxn(t, 'checked', ($event.target as HTMLInputElement).checked)" /></td>
               <td>{{ i + 1 }}</td>
-              <td
-                :style="expandedRows.has(t.id) ? 'white-space:normal;max-width:280px;' : 'max-width:220px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;'"
-                @click="toggleExpand(t.id)"
-                title="Klik buat lihat lengkap"
-              >{{ t.transaksi }}</td>
+              <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>{{ t.tanggal }}</td>
               <td>
                 <input type="text" :value="t.cabang" class="cell-edit" style="width:60px;" @change="patchTxn(t, 'cabang', ($event.target as HTMLInputElement).value)" />
@@ -322,9 +341,18 @@ async function onExport() {
                 </span>
               </td>
               <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:110px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="t.ketTransaksiManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'ketTransaksiManual', ($event.target as HTMLInputElement).value)" /></td>
+              <td style="min-width:160px;">
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="wrap-textarea" rows="1"
+                  :value="t.ketTransaksiManual" @input="autoGrow($event.target)"
+                  @change="patchTxn(t, 'ketTransaksiManual', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
               <td><input type="text" :value="t.noteManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'noteManual', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="no-export"><span class="row-del" @click="deleteTxn(t.id)">✕</span></td>
+              <td class="no-export">
+                <input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" />
+                <span class="row-del" @click="deleteTxn(t.id)">✕</span>
+              </td>
             </tr>
           </tbody>
         </table>

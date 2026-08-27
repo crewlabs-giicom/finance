@@ -187,6 +187,15 @@ table.dense input, table.dense select { padding: 3px 5px; font-size: 12px; }
 .cell-input:focus { border-color: var(--accent); background: #fff; }
 td.num .cell-input { text-align: right; }
 
+/* Sel tabel yang teksnya bisa panjang (Code, Description, dst) — tumbuh & wrap biar keliatan penuh, gak kepotong kayak <input> biasa. */
+textarea.wrap-textarea {
+  border: 1px solid transparent; background: transparent; width: 100%; min-width: 60px; min-height: 20px;
+  padding: 3px 5px; font-size: 12px; font-family: inherit; line-height: 1.35;
+  white-space: pre-wrap; word-break: break-word; resize: none; overflow: hidden;
+}
+textarea.wrap-textarea:hover { border-color: var(--border); }
+textarea.wrap-textarea:focus { border-color: var(--accent); background: #fff; }
+
 /* ---------- chip master data ---------- */
 .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {

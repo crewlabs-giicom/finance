@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { MONTH_NAMES, autoGrow, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -24,8 +24,10 @@ const npwps = ref<Npwp[]>([])
 const tags = ref<Tag[]>([])
 
 const today = new Date()
-const filterMonth = ref(today.getMonth() + 1)
-const filterYear = ref(today.getFullYear())
+const filterFromMonth = ref(today.getMonth() + 1)
+const filterFromYear = ref(today.getFullYear())
+const filterToMonth = ref(today.getMonth() + 1)
+const filterToYear = ref(today.getFullYear())
 const filterGroup = ref('')
 const filterMasaKredit = ref('')
 const uploadGroup = ref('')
@@ -42,10 +44,12 @@ async function loadAll() {
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 
-const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`)
+const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
+const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
 
 function inPeriod(r: PpnRow) {
-  return (r.tanggal || '').startsWith(monthPrefix.value)
+  const ym = (r.tanggal || '').slice(0, 7)
+  return ym >= fromYm.value && ym <= toYm.value
 }
 
 const visibleSections = computed(() =>
@@ -114,7 +118,7 @@ async function addRow(groupId: string | null) {
   try {
     const created = await api<PpnRow>('/api/ppn', {
       method: 'POST',
-      body: { groupId, tanggal: `${monthPrefix.value}-01` }
+      body: { groupId, tanggal: `${fromYm.value}-01` }
     })
     rows.value.push(created)
   } catch (e: any) {
@@ -129,6 +133,28 @@ async function deleteRow(r: PpnRow) {
   } catch (e: any) {
     status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal hapus baris.' }
   }
+}
+
+const multi = useMultiSelect()
+const selectedIds = multi.selectedIds
+async function deleteSelected() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  if (!confirm(`Hapus ${ids.length} baris terpilih?`)) return
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      await api(`/api/ppn/${id}`, { method: 'DELETE' })
+      selectedIds.delete(id)
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  status.value = fail
+    ? { type: 'err', msg: `${ok} baris dihapus, ${fail} gagal (kemungkinan periode terkunci).` }
+    : { type: 'ok', msg: `${ok} baris dihapus.` }
 }
 
 /** Duplicate lewat menu klik kanan — salin seluruh isi baris kecuali id & sumber transaksinya.
@@ -239,6 +265,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
         <h2>List Pajak</h2>
         <p>Upload transaksi dari sistem lain (.xlsx), lengkapi kolom pajaknya, lalu dikelompokkan sesuai grup.</p>
       </div>
+      <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
@@ -266,7 +293,10 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
       </p>
     </div>
 
-    <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear">
+    <PeriodRangeFilter
+      v-model:from-month="filterFromMonth" v-model:from-year="filterFromYear"
+      v-model:to-month="filterToMonth" v-model:to-year="filterToYear"
+    >
       <span class="gm-label" style="margin-left:10px;">Grup:</span>
       <select v-model="filterGroup">
         <option value="">Semua grup</option>
@@ -277,7 +307,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
         <option value="">Semua Masa Kredit</option>
         <option v-for="mk in masaKreditOptions" :key="mk" :value="mk">{{ masaKreditLabel(mk) }}</option>
       </select>
-    </PeriodFilter>
+    </PeriodRangeFilter>
 
     <div v-if="masaKreditSummary" class="status-box status-ok no-export" style="display:flex;gap:22px;flex-wrap:wrap;">
       <span>📊 Total Masa Kredit <b>{{ masaKreditLabel(filterMasaKredit) }}</b> ({{ masaKreditSummary.count }} baris):</span>
@@ -302,6 +332,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
         <table class="dense" :data-sheet="sec.nama">
           <thead>
             <tr>
+              <th class="no-export"><input type="checkbox" :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(sec.rows.map(r => r.id))" /></th>
               <th class="no-export"></th>
               <th>Tanggal</th><th>Code</th><th>Store</th><th>Description</th><th>Tags</th>
               <th class="num">Debet</th><th class="num">Kredit</th>
@@ -317,6 +348,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               :style="rowColors.colorOf(r.id) ? `background:${rowColors.colorOf(r.id)}` : ''"
               @contextmenu="rowColors.open($event, r.id)"
             >
+              <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
               <td class="no-export"><span class="row-del" @click="deleteRow(r)">✕</span></td>
               <td>
                 <input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)"
@@ -324,7 +356,13 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               </td>
               <td><input class="cell-input" style="min-width:110px;" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="r.store" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { store: ($event.target as HTMLInputElement).value })" /></td>
-              <td><input class="cell-input" style="min-width:180px;" :value="r.description" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { description: ($event.target as HTMLInputElement).value })" /></td>
+              <td style="min-width:200px;">
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="wrap-textarea" rows="1" :disabled="isLocked(r.tanggal)"
+                  :value="r.description" @input="autoGrow($event.target)"
+                  @change="patchRow(r, { description: ($event.target as HTMLTextAreaElement).value })"
+                ></textarea>
+              </td>
               <td>
                 <select :value="r.tags" :disabled="isLocked(r.tanggal)" @change="onTagChange(r, ($event.target as HTMLSelectElement).value)">
                   <option value="">-</option>
@@ -358,6 +396,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               <td><input class="cell-input" :value="r.note" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { note: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="subtotal-row">
+              <td class="no-export"></td>
               <td class="no-export"></td>
               <td colspan="5">Subtotal {{ sec.nama }} ({{ sec.rows.length }} baris)</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'debet')) }}</td>

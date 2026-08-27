@@ -228,6 +228,30 @@ async function deleteRow(kind: 'gudang' | 'finance', id: string) {
   }
 }
 
+const multiGudang = useMultiSelect()
+const multiFinance = useMultiSelect()
+async function deleteSelected(kind: 'gudang' | 'finance') {
+  const multi = kind === 'gudang' ? multiGudang : multiFinance
+  const target = kind === 'gudang' ? gudangStatus : financeStatus
+  const ids = [...multi.selectedIds]
+  if (!ids.length) return
+  if (!confirm(`Hapus ${ids.length} baris terpilih?`)) return
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      await api(`/api/te/${kind}/${id}`, { method: 'DELETE' })
+      multi.selectedIds.delete(id)
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  target.value = fail
+    ? { type: 'err', msg: `${ok} baris dihapus, ${fail} gagal (kemungkinan periode terkunci).` }
+    : { type: 'ok', msg: `${ok} baris dihapus.` }
+}
+
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
@@ -312,11 +336,22 @@ async function onExport() {
     </PeriodFilter>
 
     <div class="panel">
-      <div class="panel-head"><h3>📦 Data Gudang ({{ visibleGudang.length }} baris)</h3></div>
+      <div class="panel-head">
+        <h3>📦 Data Gudang ({{ visibleGudang.length }} baris)</h3>
+        <button v-if="multiGudang.selectedIds.size" class="btn danger no-export" @click="deleteSelected('gudang')">🗑 Hapus {{ multiGudang.selectedIds.size }} Terpilih</button>
+      </div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Data Gudang">
           <thead>
             <tr>
+              <th class="no-export">
+                <input
+                  type="checkbox"
+                  :checked="visibleGudang.length > 0 && visibleGudang.every(r => multiGudang.selectedIds.has(r.id))"
+                  @change="multiGudang.toggleAll(visibleGudang.map(r => r.id))"
+                  title="Pilih semua"
+                />
+              </th>
               <th class="no-export"></th>
               <th>Tanggal</th><th>Nama Pengirim</th><th>Nama Penerima</th><th>INV GII</th><th>No. Waybill</th>
               <th class="num">Biaya (Gudang)</th><th class="num">Biaya (Ekspedisi)</th><th class="num">Selisih</th>
@@ -324,8 +359,9 @@ async function onExport() {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!visibleGudang.length"><td colspan="11" class="empty-state">Belum ada data gudang di periode/status ini.</td></tr>
+            <tr v-if="!visibleGudang.length"><td colspan="12" class="empty-state">Belum ada data gudang di periode/status ini.</td></tr>
             <tr v-for="r in visibleGudang" :key="r.id">
+              <td class="no-export"><input type="checkbox" :checked="multiGudang.selectedIds.has(r.id)" @change="multiGudang.toggle(r.id)" /></td>
               <td class="no-export"><span class="row-del" @click="deleteRow('gudang', r.id)">✕</span></td>
               <td><input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)" @change="patchRow('gudang', r, { tanggal: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="r.namaPengirim" :disabled="isLocked(r.tanggal)" @change="patchRow('gudang', r, { namaPengirim: ($event.target as HTMLInputElement).value })" /></td>
@@ -351,11 +387,22 @@ async function onExport() {
     </div>
 
     <div class="panel">
-      <div class="panel-head"><h3>🧾 Tagihan Ekspedisi ({{ visibleFinance.length }} baris)</h3></div>
+      <div class="panel-head">
+        <h3>🧾 Tagihan Ekspedisi ({{ visibleFinance.length }} baris)</h3>
+        <button v-if="multiFinance.selectedIds.size" class="btn danger no-export" @click="deleteSelected('finance')">🗑 Hapus {{ multiFinance.selectedIds.size }} Terpilih</button>
+      </div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Tagihan Finance">
           <thead>
             <tr>
+              <th class="no-export">
+                <input
+                  type="checkbox"
+                  :checked="visibleFinance.length > 0 && visibleFinance.every(r => multiFinance.selectedIds.has(r.id))"
+                  @change="multiFinance.toggleAll(visibleFinance.map(r => r.id))"
+                  title="Pilih semua"
+                />
+              </th>
               <th class="no-export"></th>
               <th>Tanggal</th><th>No. Waybill</th><th>Nama Penerima</th>
               <th class="num">Biaya (Ekspedisi)</th><th class="num">Biaya (Gudang)</th><th class="num">Selisih</th>
@@ -363,8 +410,9 @@ async function onExport() {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!visibleFinance.length"><td colspan="9" class="empty-state">Belum ada tagihan di periode/status ini.</td></tr>
+            <tr v-if="!visibleFinance.length"><td colspan="10" class="empty-state">Belum ada tagihan di periode/status ini.</td></tr>
             <tr v-for="r in visibleFinance" :key="r.id">
+              <td class="no-export"><input type="checkbox" :checked="multiFinance.selectedIds.has(r.id)" @change="multiFinance.toggle(r.id)" /></td>
               <td class="no-export"><span class="row-del" @click="deleteRow('finance', r.id)">✕</span></td>
               <td><input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)" @change="patchRow('finance', r, { tanggal: ($event.target as HTMLInputElement).value })" /></td>
               <td>{{ r.noWaybill }}</td>

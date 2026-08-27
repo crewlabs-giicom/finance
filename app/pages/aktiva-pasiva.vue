@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { autoGrow, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -21,11 +21,37 @@ const coas = ref<Coa[]>([])
 const lawan = ref<Lawan[]>([])
 
 const today = new Date()
-const filterMonth = ref(today.getMonth() + 1)
-const filterYear = ref(today.getFullYear())
+const filterFromMonth = ref(today.getMonth() + 1)
+const filterFromYear = ref(today.getFullYear())
+const filterToMonth = ref(today.getMonth() + 1)
+const filterToYear = ref(today.getFullYear())
 const filterGroup = ref('')
 const filterCoa = ref('')
 const filterNoLawan = ref(false)
+
+const multi = useMultiSelect()
+const selectedIds = multi.selectedIds
+async function deleteSelected() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  if (!confirm(`Hapus ${ids.length} baris terpilih? Pasangan lawannya ikut lepas.`)) return
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      const r = rows.value.find(x => x.id === id)
+      if (r) for (const p of partnersOf(r.id)) await removeLawan(r, p.id)
+      await api(`/api/avp/${id}`, { method: 'DELETE' })
+      selectedIds.delete(id)
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  status.value = fail
+    ? { type: 'err', msg: `${ok} baris dihapus, ${fail} gagal (kemungkinan periode terkunci).` }
+    : { type: 'ok', msg: `${ok} baris dihapus.` }
+}
 
 const uploadCoa = ref('')
 const uploadGroup = ref('')
@@ -54,10 +80,12 @@ async function loadAll() {
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 
-// filterMonth === 0 artinya "Semua Bulan" — prefix-nya cuma tahun aja.
-const monthPrefix = computed(() =>
-  filterMonth.value === 0 ? `${filterYear.value}` : `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`
-)
+const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
+const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
+function inPeriod(tanggal: string) {
+  const ym = (tanggal || '').slice(0, 7)
+  return ym >= fromYm.value && ym <= toYm.value
+}
 
 function partnersOf(rowId: string) {
   const ids = lawan.value.filter(l => l.rowId === rowId).map(l => l.partnerId)
@@ -77,7 +105,7 @@ const visibleSections = computed(() =>
     .map(s => {
       const secRows = rows.value.filter(r =>
         (r.groupId || '') === (s.id || '') &&
-        (r.tanggal || '').startsWith(monthPrefix.value) &&
+        inPeriod(r.tanggal) &&
         (!filterCoa.value || r.coaId === filterCoa.value) &&
         (!filterNoLawan.value || partnersOf(r.id).length === 0)
       )
@@ -105,12 +133,15 @@ function coaLabel(id: string | null) {
   return c ? `${c.noCoa} — ${c.namaCoa}` : 'Tanpa COA'
 }
 
-/** Kandidat lawan: baris di sisi berlawanan yang belum dipasangkan dengan baris ini. */
+/** Kandidat lawan: baris di sisi berlawanan yang belum dipasangkan dan masih muat di sisa kapasitas baris ini
+ *  (total lawan gak boleh lebih dari nilai baris itu sendiri). */
 function candidatesFor(r: AvpRow) {
   const already = new Set(partnersOf(r.id).map(p => p.id))
   const wantKredit = r.debet > 0
+  const remaining = rowAmount(r) - matchedTotal(r)
   return rows.value.filter(x =>
-    x.id !== r.id && !already.has(x.id) && (wantKredit ? x.kredit > 0 : x.debet > 0)
+    x.id !== r.id && !already.has(x.id) && (wantKredit ? x.kredit > 0 : x.debet > 0) &&
+    rowAmount(x) <= remaining + 0.5
   )
 }
 
@@ -260,6 +291,7 @@ async function onExport() {
         <h2>Aktiva - Pasiva</h2>
         <p>Upload transaksi (.xlsx) per COA, lalu carikan pasangan debit-kreditnya. Baris yang totalnya sudah imbang ditandai hijau.</p>
       </div>
+      <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
@@ -289,7 +321,10 @@ async function onExport() {
       <p class="hint">Wajib pilih COA dulu (Grup opsional). File butuh kolom Date, Code, Store, Description, Tags, Debet, Kredit.</p>
     </div>
 
-    <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear" allow-all-months>
+    <PeriodRangeFilter
+      v-model:from-month="filterFromMonth" v-model:from-year="filterFromYear"
+      v-model:to-month="filterToMonth" v-model:to-year="filterToYear"
+    >
       <span class="gm-label" style="margin-left:10px;">Grup:</span>
       <select v-model="filterGroup">
         <option value="">Semua grup</option>
@@ -303,7 +338,7 @@ async function onExport() {
       <label style="display:flex;align-items:center;gap:5px;margin-left:10px;font-size:12.5px;font-weight:600;cursor:pointer;">
         <input v-model="filterNoLawan" type="checkbox" /> Belum ada lawan
       </label>
-    </PeriodFilter>
+    </PeriodRangeFilter>
 
     <div v-if="!visibleSections.length" class="empty-state">Belum ada data Aktiva-Pasiva sesuai filter ini.</div>
 
@@ -335,6 +370,7 @@ async function onExport() {
           <table class="dense" :data-sheet="`${sec.nama} ${cg.label}`">
             <thead>
               <tr>
+                <th class="no-export"><input type="checkbox" :checked="cg.rows.length > 0 && cg.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(cg.rows.map(r => r.id))" /></th>
                 <th class="no-export"></th>
                 <th>Tanggal</th><th>Code</th><th>Store</th><th>Description</th><th>Tags</th>
                 <th class="num">Debet</th><th class="num">Kredit</th>
@@ -348,24 +384,37 @@ async function onExport() {
                 :style="rowColors.colorOf(r.id) ? `background:${rowColors.colorOf(r.id)}` : ''"
                 @contextmenu="rowColors.open($event, r.id)"
               >
+                <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
                 <td class="no-export"><span class="row-del" @click="deleteRow(r)">✕</span></td>
                 <td><input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { tanggal: ($event.target as HTMLInputElement).value })" /></td>
-                <td><input class="cell-input" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
+                <td style="min-width:110px;">
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="wrap-textarea" rows="1" :disabled="isLocked(r.tanggal)"
+                    :value="r.code" @input="autoGrow($event.target)"
+                    @change="patchRow(r, { code: ($event.target as HTMLTextAreaElement).value })"
+                  ></textarea>
+                </td>
                 <td><input class="cell-input" :value="r.store" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { store: ($event.target as HTMLInputElement).value })" /></td>
-                <td><input class="cell-input" style="min-width:180px;" :value="r.description" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { description: ($event.target as HTMLInputElement).value })" /></td>
+                <td style="min-width:220px;">
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="wrap-textarea" rows="1" :disabled="isLocked(r.tanggal)"
+                    :value="r.description" @input="autoGrow($event.target)"
+                    @change="patchRow(r, { description: ($event.target as HTMLTextAreaElement).value })"
+                  ></textarea>
+                </td>
                 <td><input class="cell-input" :value="r.tags" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { tags: ($event.target as HTMLInputElement).value })" /></td>
                 <td class="num"><input class="cell-input" :value="fmtNum(r.debet, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { debet: parseNum(($event.target as HTMLInputElement).value) })" /></td>
                 <td class="num"><input class="cell-input" :value="fmtNum(r.kredit, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { kredit: parseNum(($event.target as HTMLInputElement).value) })" /></td>
                 <td>
                   <div style="display:flex;flex-direction:column;gap:3px;min-width:190px;">
                     <span v-for="p in partnersOf(r.id)" :key="p.id" class="chip">
-                      {{ formatDateShort(p.tanggal) }} · {{ fmtRp(rowAmount(p)) }}
+                      {{ formatDateShort(p.tanggal) }} · {{ p.code || '-' }} · {{ fmtRp(rowAmount(p)) }}
                       <span class="chip-del no-export" title="Lepas pasangan" @click="removeLawan(r, p.id)">✕</span>
                     </span>
                     <select class="no-export" @change="addLawan(r, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''">
                       <option value="">+ tambah lawan…</option>
                       <option v-for="c in candidatesFor(r)" :key="c.id" :value="c.id">
-                        {{ formatDateShort(c.tanggal) }} · {{ fmtRp(rowAmount(c)) }} · {{ c.description }}
+                        {{ formatDateShort(c.tanggal) }} · {{ c.code || '-' }} · {{ fmtRp(rowAmount(c)) }} · {{ c.description }}
                       </option>
                     </select>
                   </div>
@@ -378,6 +427,7 @@ async function onExport() {
                 </td>
               </tr>
               <tr class="subtotal-row">
+                <td class="no-export"></td>
                 <td class="no-export"></td>
                 <td colspan="5">Subtotal {{ cg.label }} ({{ cg.rows.length }} baris)</td>
                 <td class="num">{{ fmtRp(cg.rows.reduce((a, r) => a + r.debet, 0)) }}</td>

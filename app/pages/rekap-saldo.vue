@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { hitungBisaDipakai, parseNum, formatDateShort, parseDateShort } from '~/utils/format'
+import { hitungBisaDipakai, parseNum, formatDateShort, parseDateShort, autoGrow } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -81,14 +81,6 @@ async function patchRow(kind: 'deposito' | 'hutang' | 'bayar', row: any, field: 
     await loadAll()
   }
 }
-/** Textarea Keterangan tumbuh sesuai isinya — dipanggil waktu mount dan tiap ngetik. */
-function autoGrow(el: HTMLTextAreaElement | EventTarget | null) {
-  const ta = el as HTMLTextAreaElement | null
-  if (!ta) return
-  ta.style.height = 'auto'
-  ta.style.height = ta.scrollHeight + 'px'
-}
-
 function patchDateShort(kind: 'hutang' | 'bayar', row: any, field: string, rawText: string) {
   const trimmed = rawText.trim()
   if (!trimmed) { patchRow(kind, row, field, null); return }

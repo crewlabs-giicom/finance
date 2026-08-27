@@ -24,8 +24,10 @@ const rows = ref<PpnRow[]>([])
 const npwps = ref<Npwp[]>([])
 
 const today = new Date()
-const filterMonth = ref(today.getMonth() + 1)
-const filterYear = ref(today.getFullYear())
+const filterFromMonth = ref(today.getMonth() + 1)
+const filterFromYear = ref(today.getFullYear())
+const filterToMonth = ref(today.getMonth() + 1)
+const filterToYear = ref(today.getFullYear())
 const filterGroup = ref('')
 const filterJenis = ref<'all' | 'pph23' | 'pph21bp'>('all')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
@@ -39,7 +41,12 @@ async function loadAll() {
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 
-const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}`)
+const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
+const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
+function inPeriod(tanggal: string) {
+  const ym = (tanggal || '').slice(0, 7)
+  return ym >= fromYm.value && ym <= toYm.value
+}
 
 function matchesJenis(r: PpnRow) {
   const tag = (r.tags || '').trim().toUpperCase()
@@ -60,7 +67,7 @@ const visibleSections = computed(() =>
     .map(s => ({
       ...s,
       rows: rows.value
-        .filter(r => (r.groupId || '') === (s.id || '') && matchesJenis(r) && (r.tanggal || '').startsWith(monthPrefix.value))
+        .filter(r => (r.groupId || '') === (s.id || '') && matchesJenis(r) && inPeriod(r.tanggal))
         .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : 0))
     }))
     .filter(s => s.rows.length)
@@ -96,6 +103,28 @@ async function onNpwpChange(r: PpnRow, value: string) {
   }
 }
 
+const multi = useMultiSelect()
+const selectedIds = multi.selectedIds
+async function deleteSelected() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  if (!confirm(`Hapus ${ids.length} baris terpilih? Baris ini juga bakal hilang dari List Pajak.`)) return
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      await api(`/api/ppn/${id}`, { method: 'DELETE' })
+      selectedIds.delete(id)
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  status.value = fail
+    ? { type: 'err', msg: `${ok} baris dihapus, ${fail} gagal (kemungkinan periode terkunci).` }
+    : { type: 'ok', msg: `${ok} baris dihapus.` }
+}
+
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
@@ -111,6 +140,7 @@ async function onExport() {
         <h2>Daftar Norminatif</h2>
         <p>Rekap penerima &amp; pemotongan PPh, diambil otomatis dari baris List Pajak yang Tags-nya PPh 23 atau PPh 21 BP.</p>
       </div>
+      <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
@@ -120,7 +150,10 @@ async function onExport() {
       🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
     </div>
 
-    <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear">
+    <PeriodRangeFilter
+      v-model:from-month="filterFromMonth" v-model:from-year="filterFromYear"
+      v-model:to-month="filterToMonth" v-model:to-year="filterToYear"
+    >
       <span class="gm-label" style="margin-left:10px;">Grup:</span>
       <select v-model="filterGroup">
         <option value="">Semua grup</option>
@@ -132,7 +165,7 @@ async function onExport() {
         <option value="pph23">PPh 23 saja</option>
         <option value="pph21bp">PPh 21 BP saja</option>
       </select>
-    </PeriodFilter>
+    </PeriodRangeFilter>
 
     <p class="hint no-export" style="margin-bottom:12px;">
       NPWP boleh belum dipilih — bisa langsung dipilih atau ditambah di kolom NPWP. Kolom "Bentuk dan Jenis Biaya",
@@ -153,6 +186,14 @@ async function onExport() {
         <table class="dense" :data-sheet="sec.nama">
           <thead>
             <tr>
+              <th rowspan="2" class="no-export">
+                <input
+                  type="checkbox"
+                  :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))"
+                  @change="multi.toggleAll(sec.rows.map(r => r.id))"
+                  title="Pilih semua"
+                />
+              </th>
               <th rowspan="2">No</th>
               <th colspan="4" style="text-align:center;">Data Penerima</th>
               <th rowspan="2">No. Transaksi</th>
@@ -169,6 +210,7 @@ async function onExport() {
           </thead>
           <tbody>
             <tr v-for="(r, i) in sec.rows" :key="r.id">
+              <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
               <td>{{ i + 1 }}</td>
               <td>{{ npwpOf(r.npwpId)?.namaNpwp || '-' }}</td>
               <td>
@@ -189,7 +231,7 @@ async function onExport() {
               <td><input class="cell-input" :value="r.lampiranFakturPajak" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { lampiranFakturPajak: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="grand-total-row">
-              <td colspan="8" style="text-align:right;">TOTAL</td>
+              <td colspan="9" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + (r.debet || 0), 0)) }}</td>
               <td></td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + jumlahPph(r), 0)) }}</td>

@@ -66,6 +66,14 @@ export function hitungBisaDipakai(saldo: number): number {
   return Math.round(saldo / 1_000_000) * 1_000_000 - 12_000_000
 }
 
+/** Textarea sel tabel yang tumbuh otomatis sesuai isinya, biar teks panjang kelihatan tanpa terpotong. */
+export function autoGrow(el: HTMLTextAreaElement | EventTarget | null) {
+  const ta = el as HTMLTextAreaElement | null
+  if (!ta) return
+  ta.style.height = 'auto'
+  ta.style.height = ta.scrollHeight + 'px'
+}
+
 export function sumBy<T>(arr: T[], key: keyof T): number {
   return arr.reduce((a, x) => a + (Number(x[key]) || 0), 0)
 }
