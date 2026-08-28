@@ -263,7 +263,6 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
     <div class="topbar">
       <div>
         <h2>List Pajak</h2>
-        <p>Upload transaksi dari sistem lain (.xlsx), lengkapi kolom pajaknya, lalu dikelompokkan sesuai grup.</p>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>

@@ -266,7 +266,6 @@ async function onExport() {
     <div class="topbar">
       <div>
         <h2>Tagihan Ekspedisi</h2>
-        <p>Cocokkan data pengiriman tim Gudang dengan tagihan resmi ekspedisi yang diupload tim Finance — dicocokkan lewat No. Waybill &amp; Biaya Ongkos Kirim.</p>
       </div>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>

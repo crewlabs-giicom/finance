@@ -244,7 +244,6 @@ async function onExport() {
     <div class="topbar">
       <div>
         <h2>Rincian Bank</h2>
-        <p>Detail mutasi transaksi per rekening bank, lengkap dengan Tag, No Bank, Ket Transaksi, dan Catatan.</p>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
@@ -258,11 +257,6 @@ async function onExport() {
           <input type="file" accept=".csv,text/csv" style="display:none;" :disabled="importing" @change="onCsvUpload" />
         </label>
       </div>
-      <p class="hint">
-        Format BCA, BRI, maupun BNI dideteksi otomatis dari isi file. Transaksi duplikat dan baris di periode terkunci dilewati,
-        lalu kolom Saldo dihitung ulang dari Saldo Awal rekening. Khusus file BNI (gak nyimpen nomor rekening di file-nya),
-        pastikan cuma satu rekening bertipe BNI yang terdaftar di Master Data.
-      </p>
       <StatusBox :status="importStatus" />
     </div>
 

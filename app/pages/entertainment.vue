@@ -132,7 +132,6 @@ async function onExport() {
     <div class="topbar">
       <div>
         <h2>Entertainment</h2>
-        <p>Pemberian entertainment &amp; relasi usaha. Baris bertanda 🔗 berasal dari transaksi bank yang di-tag di menu Rincian Bank.</p>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>

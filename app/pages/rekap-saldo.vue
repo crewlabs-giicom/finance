@@ -149,8 +149,6 @@ async function deleteBalance(id: string) {
   await api(`/api/rekap/balances/${id}`, { method: 'DELETE' })
   await loadAll()
 }
-
-const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b.saldo || 0), 0))
 </script>
 
 <template>
@@ -158,7 +156,6 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
     <div class="topbar">
       <div>
         <h2>Rekap Saldo</h2>
-        <p>Ringkasan saldo semua rekening bank per grup, plus panel Deposito, Hutang, dan Bayar.</p>
       </div>
       <div style="display:flex;gap:8px;" class="no-export">
         <button class="btn secondary" @click="onExport">📥 Export Excel</button>
@@ -168,12 +165,11 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
       </div>
     </div>
 
-    <div v-if="lockYm" class="lock-banner no-export">
-      🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong> — data di bulan itu ke bawah tidak bisa diubah.
-    </div>
-
     <div ref="report">
-    <div class="date-banner">📅 Data per hari ini: <b>{{ todayLabel }}</b></div>
+    <div class="date-banner" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>📅 Data per hari ini: <b>{{ todayLabel }}</b></span>
+      <span v-if="lockYm">🔒 {{ lockLabel }}</span>
+    </div>
 
     <div class="rekap-grid">
     <div class="rekap-col">
@@ -182,7 +178,6 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
         <h3>💳 Saldo Rekening Bank</h3>
         <button class="btn danger" @click="resetSaldo">🔄 Nol-in Semua Saldo</button>
       </div>
-      <div class="hint" style="margin-bottom:10px;">Total saldo saat ini: <b>Rp {{ totalSaldo.toLocaleString('id-ID') }}</b></div>
 
       <div class="toolbar no-export" style="margin-bottom:10px;">
         <span class="gm-label">Filter PIC:</span>
@@ -311,7 +306,6 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
         <h3>🏦 Deposito</h3>
         <button class="btn" @click="addRow('deposito')">+ Tambah</button>
       </div>
-      <div class="hint" style="margin-bottom:10px;">Total deposito: <b>Rp {{ totalDeposito.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Deposito">
           <colgroup>
@@ -334,6 +328,11 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
               <td><input type="text" :value="d.ket" class="cell-edit" style="width:140px;" @change="patchRow('deposito', d, 'ket', ($event.target as HTMLInputElement).value)" /></td>
               <td><span class="row-del" @click="deleteRow('deposito', d.id)">✕</span></td>
             </tr>
+            <tr v-if="deposito.length" class="subtotal-row">
+              <td>TOTAL</td>
+              <td class="num">Rp {{ totalDeposito.toLocaleString('id-ID') }}</td>
+              <td colspan="5"></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -344,7 +343,6 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
         <h3>💸 Hutang</h3>
         <button class="btn" @click="addRow('hutang')">+ Tambah</button>
       </div>
-      <div class="hint" style="margin-bottom:10px;">Total hutang: <b>Rp {{ totalHutang.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Hutang">
           <colgroup>
@@ -373,6 +371,11 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
               <td><input type="text" :value="h.ket" class="cell-edit" style="width:140px;" @change="patchRow('hutang', h, 'ket', ($event.target as HTMLInputElement).value)" /></td>
               <td><span class="row-del" @click="deleteRow('hutang', h.id)">✕</span></td>
             </tr>
+            <tr v-if="hutang.length" class="subtotal-row">
+              <td colspan="2">TOTAL</td>
+              <td class="num">Rp {{ totalHutang.toLocaleString('id-ID') }}</td>
+              <td colspan="5"></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -383,7 +386,6 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
         <h3>🧾 Bayar</h3>
         <button class="btn" @click="addRow('bayar')">+ Tambah</button>
       </div>
-      <div class="hint" style="margin-bottom:10px;">Total bayar: <b>Rp {{ totalBayar.toLocaleString('id-ID') }}</b></div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Bayar">
           <colgroup>
@@ -413,6 +415,11 @@ const totalSaldo = computed(() => filteredBalances.value.reduce((s, b) => s + (b
                 ></textarea>
               </td>
               <td><span class="row-del" @click="deleteRow('bayar', b.id)">✕</span></td>
+            </tr>
+            <tr v-if="bayar.length" class="subtotal-row">
+              <td>TOTAL</td>
+              <td class="num">Rp {{ totalBayar.toLocaleString('id-ID') }}</td>
+              <td colspan="7"></td>
             </tr>
           </tbody>
         </table>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { parseNum } from '~/utils/format'
+
 const api = useApi()
 const { load: loadGroups } = useGroups()
 const { load: loadPics } = usePics()
@@ -12,6 +14,7 @@ type Tag = { id: string; nama: string }
 type SimpleMaster = { id: string; kind: 'tipe' | 'kategori' | 'div'; value: string }
 type Pic = { id: string; nama: string; urutan: number }
 type UserRow = { id: string; name: string; email: string; role: string; picId: string | null }
+type Store = { id: string; groupId: string | null; nama: string; platform: string | null; saldoAwal: number }
 
 const groups = ref<Group[]>([])
 const accounts = ref<Account[]>([])
@@ -21,6 +24,7 @@ const tags = ref<Tag[]>([])
 const asetMaster = ref<SimpleMaster[]>([])
 const picList = ref<Pic[]>([])
 const userList = ref<UserRow[]>([])
+const stores = ref<Store[]>([])
 
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -31,10 +35,11 @@ const newCoa = reactive({ noCoa: '', namaCoa: '' })
 const newTag = ref('')
 const newAsetMaster = reactive({ tipe: '', kategori: '', div: '' })
 const newPicNama = ref('')
+const newStore = reactive({ groupId: '', nama: '', platform: '', saldoAwal: '' })
 const lockInput = ref('')
 
 async function loadAll() {
-  ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, asetMaster.value, picList.value, userList.value] = await Promise.all([
+  ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, asetMaster.value, picList.value, userList.value, stores.value] = await Promise.all([
     api<Group[]>('/api/master/groups'),
     api<Account[]>('/api/master/accounts'),
     api<Npwp[]>('/api/master/npwp'),
@@ -42,7 +47,8 @@ async function loadAll() {
     api<Tag[]>('/api/master/tags'),
     api<SimpleMaster[]>('/api/master/aset-simple'),
     api<Pic[]>('/api/master/pics'),
-    api<UserRow[]>('/api/master/users')
+    api<UserRow[]>('/api/master/users'),
+    api<Store[]>('/api/mp/stores')
   ])
   await Promise.all([loadGroups(true), loadPics(true)])
 }
@@ -178,6 +184,28 @@ const addAsetMaster = (kind: 'tipe' | 'kategori' | 'div') => {
 }
 const deleteAsetMaster = (id: string) =>
   run(() => api(`/api/master/aset-simple/${id}`, { method: 'DELETE' }), 'Master aset dihapus.')
+
+const addStore = () => {
+  if (!newStore.nama.trim()) return
+  return run(async () => {
+    await api('/api/mp/stores', {
+      method: 'POST',
+      body: {
+        groupId: newStore.groupId || null,
+        nama: newStore.nama.trim(),
+        platform: newStore.platform.trim(),
+        saldoAwal: parseNum(newStore.saldoAwal)
+      }
+    })
+    Object.assign(newStore, { nama: '', platform: '', saldoAwal: '' })
+  }, 'Toko ditambahkan.')
+}
+const patchStore = (st: Store, patch: Partial<Store>) =>
+  run(() => api(`/api/mp/stores/${st.id}`, { method: 'PATCH', body: patch }), 'Toko diperbarui.')
+const deleteStore = (st: Store) => {
+  if (!confirm(`Hapus toko "${st.nama}"? Seluruh mutasi hariannya ikut kehapus.`)) return
+  return run(() => api(`/api/mp/stores/${st.id}`, { method: 'DELETE' }), 'Toko dihapus.')
+}
 
 const asetOf = (kind: 'tipe' | 'kategori' | 'div') => computed(() => asetMaster.value.filter(m => m.kind === kind))
 const tipeList = asetOf('tipe')
@@ -398,6 +426,41 @@ function groupLabel(id: string | null) {
       <div v-else class="chip-row">
         <span v-for="c in coas" :key="c.id" class="chip">{{ c.noCoa }} — {{ c.namaCoa }}<span class="chip-del" @click="deleteCoa(c.id)">✕</span></span>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🏪 Toko Marketplace</h3></div>
+      <div class="toolbar">
+        <select v-model="newStore.groupId">
+          <option value="">Tanpa Grup</option>
+          <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.nama }}</option>
+        </select>
+        <input v-model="newStore.platform" placeholder="Platform (Shopee, Tokopedia…)" style="width:180px;" />
+        <input v-model="newStore.nama" placeholder="Nama toko" style="width:180px;" />
+        <input v-model="newStore.saldoAwal" placeholder="Saldo awal" style="width:130px;text-align:right;" @keyup.enter="addStore" />
+        <button class="btn" @click="addStore">+ Tambah Toko</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>Grup</th><th>Platform</th><th>Nama Toko</th><th class="num">Saldo Awal</th></tr></thead>
+          <tbody>
+            <tr v-if="!stores.length"><td colspan="5" class="empty-state">Belum ada toko.</td></tr>
+            <tr v-for="st in stores" :key="st.id">
+              <td><span class="row-del" @click="deleteStore(st)">✕</span></td>
+              <td>{{ groupLabel(st.groupId) }}</td>
+              <td>{{ st.platform }}</td>
+              <td><input class="cell-input" :value="st.nama" @change="patchStore(st, { nama: ($event.target as HTMLInputElement).value })" /></td>
+              <td class="num">
+                <input
+                  class="cell-input" style="text-align:right;"
+                  :value="st.saldoAwal" @change="patchStore(st, { saldoAwal: parseNum(($event.target as HTMLInputElement).value) })"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Saldo awal dipakai sebagai baseline perhitungan saldo berjalan toko di Rincian MP.</p>
     </div>
 
     <div class="panel">

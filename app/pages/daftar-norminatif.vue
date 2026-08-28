@@ -138,7 +138,6 @@ async function onExport() {
     <div class="topbar">
       <div>
         <h2>Daftar Norminatif</h2>
-        <p>Rekap penerima &amp; pemotongan PPh, diambil otomatis dari baris List Pajak yang Tags-nya PPh 23 atau PPh 21 BP.</p>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>

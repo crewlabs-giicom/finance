@@ -289,7 +289,6 @@ async function onExport() {
     <div class="topbar">
       <div>
         <h2>Aktiva - Pasiva</h2>
-        <p>Upload transaksi (.xlsx) per COA, lalu carikan pasangan debit-kreditnya. Baris yang totalnya sudah imbang ditandai hijau.</p>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
