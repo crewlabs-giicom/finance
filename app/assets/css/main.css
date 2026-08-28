@@ -86,6 +86,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-ligh
 .gm-label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px; }
 table { border-collapse: collapse; width: 100%; min-width: 640px; }
 thead th {
   position: sticky; top: 0; background: var(--accent-light); text-align: left;
@@ -127,8 +128,14 @@ td.num, th.num { text-align: right; }
 .row-del { cursor: pointer; color: var(--red); font-weight: 700; }
 .row-del:hover { text-decoration: underline; }
 .row-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.row-lock { cursor: pointer; font-size: 12px; line-height: 1; }
-.row-lock:hover { opacity: .7; }
+.row-lock {
+  cursor: pointer; font-size: 12px; line-height: 1; display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 7px; border-radius: 999px; font-weight: 700; white-space: nowrap;
+  background: var(--green-bg); color: var(--green); border: 1px solid transparent;
+}
+.row-lock:hover { opacity: .8; }
+.row-lock.is-locked { background: var(--red-bg); color: var(--red); }
+.saldo-locked-input:disabled { background: var(--red-bg) !important; color: var(--red) !important; opacity: 1; cursor: not-allowed; }
 
 .cell-edit { min-width: 60px; }
 

@@ -8,6 +8,7 @@ export default defineEventHandler(async (event) => {
   if (body.saldoAwal !== undefined) patch.saldoAwal = body.saldoAwal === '' || body.saldoAwal === null ? null : (Number(body.saldoAwal) || 0)
   if (body.namaRek !== undefined) patch.namaRek = String(body.namaRek)
   if (body.noRek !== undefined) patch.noRek = String(body.noRek)
+  if (body.bankType !== undefined) patch.bankType = String(body.bankType)
   if (body.groupId !== undefined) patch.groupId = body.groupId || null
   if (body.picId !== undefined) patch.picId = body.picId || null
   if (Object.keys(patch).length === 0) throw createError({ statusCode: 400, statusMessage: 'Gak ada field yang diupdate.' })

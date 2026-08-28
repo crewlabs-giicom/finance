@@ -27,6 +27,7 @@ const filterDateFrom = ref(firstOfMonth(today.getFullYear(), today.getMonth() + 
 const filterDateTo = ref(lastOfMonth(today.getFullYear(), today.getMonth() + 1))
 const filterPic = ref('') // '' = semua PIC
 const filterBank = ref('') // '' = semua bank
+const filterAccount = ref('') // '' = belum pilih rekening — datanya sengaja gak ditampilin dulu
 
 async function loadAll() {
   ;[accounts.value, txns.value, tags.value, rowColors.value] = await Promise.all([
@@ -49,10 +50,32 @@ const visibleAccounts = computed(() =>
   )
 )
 
+// Kalau rekening yang lagi dipilih jadi gak cocok lagi sama filter PIC/Bank (atau ke-hapus), reset pilihannya.
+watch(visibleAccounts, (list) => {
+  if (filterAccount.value && !list.some(a => a.id === filterAccount.value)) filterAccount.value = ''
+})
+
+const selectedAccount = computed(() => accounts.value.find(a => a.id === filterAccount.value) || null)
+
 function txnsForAccount(accId: string) {
   return txns.value
     .filter(t => t.accountId === accId && t.tanggal >= filterDateFrom.value && t.tanggal <= filterDateTo.value)
     .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : 0))
+}
+
+// -- pagination tabel transaksi --
+const PAGE_SIZE = 50
+const currentPage = ref(1)
+watch([filterAccount, filterDateFrom, filterDateTo], () => { currentPage.value = 1 })
+
+const allTxnsForSelected = computed(() => selectedAccount.value ? txnsForAccount(selectedAccount.value.id) : [])
+const totalPages = computed(() => Math.max(1, Math.ceil(allTxnsForSelected.value.length / PAGE_SIZE)))
+const pagedTxns = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return allTxnsForSelected.value.slice(start, start + PAGE_SIZE)
+})
+function goToPage(p: number) {
+  currentPage.value = Math.min(Math.max(1, p), totalPages.value)
 }
 
 function rowColor(id: string) {
@@ -206,7 +229,7 @@ async function onCsvUpload(evt: Event) {
       format: string; rekening: string; imported: number; duplikat: number
       terkunci: number; rekeningTidakTerdaftar: number; rekeningTidakTerdaftarNoRek: string[]
       tanggalTerbaru: string | null
-    }>('/api/bank-txns/import-csv', { method: 'POST', body: { csv } })
+    }>('/api/bank-txns/import-csv', { method: 'POST', body: { csv, filename: file.name } })
 
     await loadAll()
 
@@ -276,36 +299,42 @@ async function onExport() {
         <option value="BCA">BCA</option><option value="BRI">BRI</option><option value="BNI">BNI</option>
         <option value="MANDIRI">Mandiri</option><option value="OTHER">Lainnya</option>
       </select>
+      <span class="gm-label" style="margin-left:10px;">Rekening:</span>
+      <select v-model="filterAccount">
+        <option value="">— pilih rekening —</option>
+        <option v-for="acc in visibleAccounts" :key="acc.id" :value="acc.id">{{ acc.bankType }} · {{ acc.namaRek }} ({{ acc.noRek }})</option>
+      </select>
     </div>
 
     <div v-if="!accounts.length" class="empty-state">Belum ada rekening bank. Tambahkan dulu lewat menu "Master Data".</div>
-    <div v-else-if="!visibleAccounts.length" class="empty-state">Gak ada rekening yang cocok sama filter ini.</div>
+    <div v-else-if="!visibleAccounts.length" class="empty-state">Gak ada rekening yang cocok sama filter PIC/Bank ini.</div>
+    <div v-else-if="!selectedAccount" class="empty-state">Pilih rekening dulu di filter "Rekening" di atas buat lihat datanya.</div>
 
-    <div v-for="acc in visibleAccounts" :key="acc.id" class="panel">
+    <div v-else class="panel">
       <div class="panel-head">
-        <h3><span class="pill">{{ acc.bankType }}</span> {{ acc.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ acc.noRek }})</span></h3>
+        <h3><span class="pill">{{ selectedAccount.bankType }}</span> {{ selectedAccount.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ selectedAccount.noRek }})</span></h3>
       </div>
 
       <div class="toolbar">
         <span class="gm-label">+ Tambah manual:</span>
-        <input type="date" v-model="formFor(acc.id).tanggal" />
-        <input type="text" v-model="formFor(acc.id).transaksi" placeholder="Transaksi..." style="width:200px;" />
-        <input type="text" v-model="formFor(acc.id).cabang" placeholder="Cabang" style="width:80px;" />
-        <input type="number" v-model="formFor(acc.id).debet" placeholder="Debet" style="width:100px;" />
-        <input type="number" v-model="formFor(acc.id).kredit" placeholder="Kredit" style="width:100px;" />
-        <button class="btn" @click="addTxn(acc.id)">+ Tambah</button>
+        <input type="date" v-model="formFor(selectedAccount.id).tanggal" />
+        <input type="text" v-model="formFor(selectedAccount.id).transaksi" placeholder="Transaksi..." style="width:200px;" />
+        <input type="text" v-model="formFor(selectedAccount.id).cabang" placeholder="Cabang" style="width:80px;" />
+        <input type="number" v-model="formFor(selectedAccount.id).debet" placeholder="Debet" style="width:100px;" />
+        <input type="number" v-model="formFor(selectedAccount.id).kredit" placeholder="Kredit" style="width:100px;" />
+        <button class="btn" @click="addTxn(selectedAccount.id)">+ Tambah</button>
       </div>
 
       <div class="table-wrap">
-        <table :data-sheet="acc.namaRek">
+        <table :data-sheet="selectedAccount.namaRek">
           <thead>
             <tr>
               <th class="no-export">
                 <input
                   type="checkbox"
-                  :checked="txnsForAccount(acc.id).length > 0 && txnsForAccount(acc.id).every(t => selectedIds.has(t.id))"
-                  @change="multi.toggleAll(txnsForAccount(acc.id).map(t => t.id))"
-                  title="Pilih semua"
+                  :checked="pagedTxns.length > 0 && pagedTxns.every(t => selectedIds.has(t.id))"
+                  @change="multi.toggleAll(pagedTxns.map(t => t.id))"
+                  title="Pilih semua di halaman ini"
                 />
               </th>
               <th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
@@ -315,16 +344,16 @@ async function onExport() {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!txnsForAccount(acc.id).length"><td colspan="13" class="empty-state">Belum ada transaksi di periode ini.</td></tr>
+            <tr v-if="!allTxnsForSelected.length"><td colspan="13" class="empty-state">Belum ada transaksi di periode ini.</td></tr>
             <tr
-              v-for="(t, i) in txnsForAccount(acc.id)"
+              v-for="(t, i) in pagedTxns"
               :key="t.id"
               :style="rowColor(t.id) ? `background:${rowColor(t.id)}` : ''"
               @contextmenu="openColorMenu($event, t.id)"
               title="Klik kanan buat warnain / duplicate baris"
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" /></td>
-              <td>{{ i + 1 }}</td>
+              <td>{{ (currentPage - 1) * PAGE_SIZE + i + 1 }}</td>
               <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>{{ t.tanggal }}</td>
               <td>
@@ -351,6 +380,12 @@ async function onExport() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="allTxnsForSelected.length" class="pagination no-export">
+        <button class="btn secondary" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">‹ Sebelumnya</button>
+        <span class="gm-label">Halaman {{ currentPage }} dari {{ totalPages }} ({{ allTxnsForSelected.length }} transaksi)</span>
+        <button class="btn secondary" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">Selanjutnya ›</button>
       </div>
     </div>
 
@@ -393,3 +428,10 @@ async function onExport() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+</style>

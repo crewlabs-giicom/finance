@@ -19,6 +19,23 @@ export type ParsedTxn = {
 }
 
 /**
+ * Cocokkan nama file ke salah satu rekening lewat No. Rekening atau Nama Rekening yang
+ * muncul sebagai bagian dari nama file — dipakai buat file BNI, yang isinya sama sekali
+ * gak nyimpen nomor rekening, jadi kalau ada lebih dari satu rekening BNI terdaftar,
+ * rekening tujuannya ditebak dari nama filenya (mis. "BNI_1234567890_Agustus.csv").
+ * Longgar: huruf/angka doang yang dibandingkan, gak peduli besar-kecil atau pemisah.
+ */
+export function matchAccountByFilename<T extends { noRek: string; namaRek: string }>(filename: string, candidates: T[]): T[] {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const f = norm(filename)
+  if (!f) return []
+  return candidates.filter(a =>
+    (norm(a.noRek).length >= 4 && f.includes(norm(a.noRek))) ||
+    (norm(a.namaRek).length >= 3 && f.includes(norm(a.namaRek)))
+  )
+}
+
+/**
  * Nol di depan nomor rekening kadang ilang waktu bank nulis kolom NOREK sebagai angka
  * (ketauan dari file BRI: nama filenya "..._057601020202308_..." tapi isi kolom NOREK-nya
  * cuma "57601020202308"). Dibanding apa adanya biar rekening yang beneran sama tetap kedetect.

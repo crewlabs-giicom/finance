@@ -203,7 +203,7 @@ async function deleteBalance(id: string) {
                   </select>
                 </td>
                 <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
                 <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
                 <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td>
@@ -213,7 +213,7 @@ async function deleteBalance(id: string) {
                   </select>
                 </td>
                 <td class="row-actions">
-                  <span class="row-lock" :title="b.locked ? 'Buka gembok' : 'Gembok baris ini'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
+                  <span class="row-lock" :class="{ 'is-locked': b.locked }" :title="b.locked ? 'Terkunci — klik buat buka' : 'Terbuka — klik buat kunci'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
                   <span class="row-del" @click="deleteBalance(b.id)">✕</span>
                 </td>
               </tr>
@@ -244,7 +244,7 @@ async function deleteBalance(id: string) {
                   </select>
                 </td>
                 <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
                 <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
                 <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td>
@@ -254,7 +254,7 @@ async function deleteBalance(id: string) {
                   </select>
                 </td>
                 <td class="row-actions">
-                  <span class="row-lock" :title="b.locked ? 'Buka gembok' : 'Gembok baris ini'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
+                  <span class="row-lock" :class="{ 'is-locked': b.locked }" :title="b.locked ? 'Terkunci — klik buat buka' : 'Terbuka — klik buat kunci'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
                   <span class="row-del" @click="deleteBalance(b.id)">✕</span>
                 </td>
               </tr>

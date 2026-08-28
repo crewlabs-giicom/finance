@@ -173,6 +173,7 @@ async function onExport() {
                     :value="fmtNum(entryOf(st.id, iso)?.debet, true)"
                     :disabled="isLocked(iso)"
                     @change="saveCell(st.id, iso, 'debet', ($event.target as HTMLInputElement).value)"
+                    @keyup.enter="($event.target as HTMLInputElement).blur()"
                   />
                 </td>
                 <td class="num">
@@ -181,6 +182,7 @@ async function onExport() {
                     :value="fmtNum(entryOf(st.id, iso)?.kredit, true)"
                     :disabled="isLocked(iso)"
                     @change="saveCell(st.id, iso, 'kredit', ($event.target as HTMLInputElement).value)"
+                    @keyup.enter="($event.target as HTMLInputElement).blur()"
                   />
                 </td>
                 <td class="num">{{ fmtRp(saldoGrid.get(`${st.id}|${iso}`) || 0) }}</td>
@@ -198,6 +200,7 @@ async function onExport() {
             style="width:130px;text-align:right;"
             :value="st.saldoAwal"
             @change="patchStore(st, 'saldoAwal', parseNum(($event.target as HTMLInputElement).value))"
+            @keyup.enter="($event.target as HTMLInputElement).blur()"
           />
         </template>
       </div>

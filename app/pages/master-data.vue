@@ -29,7 +29,7 @@ const stores = ref<Store[]>([])
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
 const newGroupNama = ref('')
-const newAcc = reactive({ groupId: '', picId: '', bankType: 'BCA', namaRek: '', noRek: '' })
+const newAcc = reactive({ groupId: '', picId: '', bankType: 'BCA', namaRek: '', noRek: '', saldoAwal: '' })
 const newNpwp = reactive({ noNpwp: '', namaNpwp: '', nik: '', alamat: '' })
 const newCoa = reactive({ noCoa: '', namaCoa: '' })
 const newTag = ref('')
@@ -130,6 +130,7 @@ const addAccount = () => {
     await api('/api/master/accounts', { method: 'POST', body: { ...newAcc, groupId: newAcc.groupId || null, picId: newAcc.picId || null } })
     newAcc.namaRek = ''
     newAcc.noRek = ''
+    newAcc.saldoAwal = ''
   }, 'Rekening ditambahkan.')
 }
 const deleteAccount = (id: string) => {
@@ -339,7 +340,13 @@ function groupLabel(id: string | null) {
           <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
         </select>
         <input v-model="newAcc.namaRek" placeholder="Nama rekening" style="width:180px;" />
-        <input v-model="newAcc.noRek" placeholder="No. rekening" style="width:160px;" @keyup.enter="addAccount" />
+        <input v-model="newAcc.noRek" placeholder="No. rekening" style="width:160px;" @keyup.enter="!newAcc.bankType.includes('BNI') && addAccount()" />
+        <input
+          v-if="newAcc.bankType === 'BNI'"
+          v-model="newAcc.saldoAwal" placeholder="Saldo awal" style="width:130px;text-align:right;"
+          title="File mutasi BNI gak nyimpen saldo, jadi diisi manual di sini"
+          @keyup.enter="addAccount"
+        />
         <button class="btn" @click="addAccount">+ Tambah Rekening</button>
       </div>
       <div class="table-wrap">
@@ -351,16 +358,26 @@ function groupLabel(id: string | null) {
             <tr v-if="!accounts.length"><td colspan="7" class="empty-state">Belum ada rekening.</td></tr>
             <tr v-for="a in accounts" :key="a.id">
               <td><span class="row-del" @click="deleteAccount(a.id)">✕</span></td>
-              <td><span class="pill">{{ a.bankType }}</span></td>
-              <td>{{ groupLabel(a.groupId) }}</td>
+              <td>
+                <select :value="a.bankType" style="width:100px;" @change="patchAccount(a, { bankType: ($event.target as HTMLSelectElement).value })">
+                  <option value="BCA">BCA</option><option value="BRI">BRI</option><option value="BNI">BNI</option>
+                  <option value="MANDIRI">Mandiri</option><option value="OTHER">Lainnya</option>
+                </select>
+              </td>
+              <td>
+                <select :value="a.groupId" style="width:110px;" @change="patchAccount(a, { groupId: ($event.target as HTMLSelectElement).value || null })">
+                  <option value="">Tanpa Grup</option>
+                  <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.nama }}</option>
+                </select>
+              </td>
               <td>
                 <select :value="a.picId" style="width:110px;" @change="patchAccount(a, { picId: ($event.target as HTMLSelectElement).value || null })">
                   <option value="">Tanpa PIC</option>
                   <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
                 </select>
               </td>
-              <td>{{ a.namaRek }}</td>
-              <td>{{ a.noRek }}</td>
+              <td><input class="cell-input" style="min-width:150px;" :value="a.namaRek" @change="patchAccount(a, { namaRek: ($event.target as HTMLInputElement).value })" /></td>
+              <td><input class="cell-input" style="min-width:130px;" :value="a.noRek" @change="patchAccount(a, { noRek: ($event.target as HTMLInputElement).value })" /></td>
               <td class="num">
                 <input
                   class="cell-input" style="text-align:right;width:140px;"
@@ -372,7 +389,7 @@ function groupLabel(id: string | null) {
           </tbody>
         </table>
       </div>
-      <p class="hint">Saldo awal jadi baseline perhitungan saldo berjalan di Rincian Bank. Kosongkan agar diisi otomatis dari file CSV saat import.</p>
+      <p class="hint">Saldo awal jadi baseline perhitungan saldo berjalan di Rincian Bank. Kosongkan agar diisi otomatis dari file CSV saat import (BCA/BRI) — khusus BNI file mutasinya gak nyimpen saldo sama sekali, jadi wajib diisi manual.</p>
     </div>
 
     <div class="panel">

@@ -1,5 +1,5 @@
 import { bankAccounts, bankTxns } from '../../database/schema'
-import { csvParseLines, detectCsvFormat, deriveKetTransaksi, normalizeNoRek, parseBcaCsv, parseBniCsv, parseBriCsv, txnDupKey, txnDupKeyWithRef } from '../../utils/bankCsv'
+import { csvParseLines, detectCsvFormat, deriveKetTransaksi, matchAccountByFilename, normalizeNoRek, parseBcaCsv, parseBniCsv, parseBriCsv, txnDupKey, txnDupKeyWithRef } from '../../utils/bankCsv'
 
 /**
  * Import mutasi bank dari CSV BCA, BRI, atau BNI.
@@ -11,6 +11,7 @@ import { csvParseLines, detectCsvFormat, deriveKetTransaksi, normalizeNoRek, par
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) || {}
   const csv = String(body.csv || '')
+  const filename = String(body.filename || '')
   if (!csv.trim()) throw createError({ statusCode: 400, statusMessage: 'Isi file CSV kosong.' })
 
   const rows = csvParseLines(csv)
@@ -92,13 +93,28 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Belum ada rekening bertipe BNI di Master Data. Tambahkan dulu (Bank: BNI) di Master Data → Rekening Bank, lalu upload ulang.'
       })
     }
-    if (bniAccounts.length > 1) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: `File BNI ini gak nyimpen nomor rekening, sedangkan ada ${bniAccounts.length} rekening BNI terdaftar — gak bisa ditentuin otomatis punya rekening yang mana. Pastikan cuma satu rekening BNI yang terdaftar di Master Data waktu upload file ini.`
-      })
+
+    let acc: typeof bniAccounts[number]
+    if (bniAccounts.length === 1) {
+      acc = bniAccounts[0]!
+    } else {
+      // File BNI gak nyimpen nomor rekening di isinya sama sekali, jadi kalau rekening
+      // BNI-nya lebih dari satu, tebak dari nama filenya (mis. mengandung No. Rekening / Nama Rekening).
+      const matches = matchAccountByFilename(filename, bniAccounts)
+      if (matches.length === 1) {
+        acc = matches[0]!
+      } else if (matches.length === 0) {
+        throw createError({
+          statusCode: 409,
+          statusMessage: `File BNI ini gak nyimpen nomor rekening, dan ada ${bniAccounts.length} rekening BNI terdaftar (${bniAccounts.map(a => a.namaRek).join(', ')}) — nama file "${filename || '(tanpa nama)'}" gak cocok sama satu pun. Ganti nama filenya biar mengandung nomor rekening atau nama rekeningnya, lalu upload ulang.`
+        })
+      } else {
+        throw createError({
+          statusCode: 409,
+          statusMessage: `Nama file "${filename}" cocok sama ${matches.length} rekening BNI sekaligus (${matches.map(a => a.namaRek).join(', ')}) — gak bisa ditentuin otomatis punya rekening yang mana. Perjelas nama filenya.`
+        })
+      }
     }
-    const acc = bniAccounts[0]!
     for (const t of parsed) push(acc, t, null)
     ringkasanRekening = `${acc.namaRek} (${acc.noRek})`
   }
