@@ -337,9 +337,9 @@ async function onExport() {
                   title="Pilih semua di halaman ini"
                 />
               </th>
-              <th>Nomor</th><th>Transaksi</th><th>Tanggal</th><th>Cabang</th>
+              <th>Nomor</th><th>Tanggal</th><th>Transaksi</th><th>Cabang</th>
               <th class="num">Debet</th><th class="num">Kredit</th><th class="num">Saldo</th>
-              <th>Tag</th><th>No Bank</th><th>Ket Transaksi</th><th>Catatan</th>
+              <th>No Bank</th><th>Ket Transaksi</th><th>Tag</th><th>Catatan</th>
               <th class="no-export"></th>
             </tr>
           </thead>
@@ -354,19 +354,14 @@ async function onExport() {
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" /></td>
               <td>{{ (currentPage - 1) * PAGE_SIZE + i + 1 }}</td>
-              <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>{{ t.tanggal }}</td>
+              <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>
                 <input type="text" :value="t.cabang" class="cell-edit" style="width:60px;" @change="patchTxn(t, 'cabang', ($event.target as HTMLInputElement).value)" />
               </td>
               <td class="num">{{ t.debet ? t.debet.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.kredit ? t.kredit.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.saldo.toLocaleString('id-ID') }}</td>
-              <td>
-                <span class="tag-cell" style="width:90px;" @click="openTagMenu($event, t.id)" title="Klik buat pilih tag (bisa lebih dari satu)">
-                  {{ t.tag ? t.tag.split(',').join(', ') : '-' }}
-                </span>
-              </td>
               <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:110px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
               <td style="min-width:160px;">
                 <textarea
@@ -374,6 +369,11 @@ async function onExport() {
                   :value="t.ketTransaksiManual" @input="autoGrow($event.target)"
                   @change="patchTxn(t, 'ketTransaksiManual', ($event.target as HTMLTextAreaElement).value)"
                 ></textarea>
+              </td>
+              <td>
+                <span class="tag-cell" style="width:90px;" @click="openTagMenu($event, t.id)" title="Klik buat pilih tag (bisa lebih dari satu)">
+                  {{ t.tag ? t.tag.split(',').join(', ') : '-' }}
+                </span>
               </td>
               <td><input type="text" :value="t.noteManual" class="cell-edit" style="width:140px;" @change="patchTxn(t, 'noteManual', ($event.target as HTMLInputElement).value)" /></td>
               <td class="no-export"><span class="row-del" @click="deleteTxn(t.id)">✕</span></td>
