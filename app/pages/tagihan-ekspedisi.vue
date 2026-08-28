@@ -124,17 +124,22 @@ const uploading = ref('')
 async function importSheet(
   evt: Event,
   kind: 'gudang' | 'finance',
-  headers: Record<string, string[]>,
-  target: typeof gudangStatus
+  headers: Record<string, string[]>
 ) {
   const input = evt.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
 
+  // Diambil dari `kind`, bukan dilempar sebagai argumen dari template — kalau ref-nya
+  // (gudangStatus/financeStatus) ditulis langsung di ekspresi template, Vue otomatis
+  // nge-unwrap ke .value SAAT ITU (snapshot, seringnya masih null), bukan ref hidupnya,
+  // jadi `target.value = ...` di bawah bakal nulis ke null alih-alih ke ref beneran.
+  const target = kind === 'gudang' ? gudangStatus : financeStatus
+
   uploading.value = kind
   try {
-    const sheet = await readFileRows(file)
+    const sheet = await readFileRows(file, headers, 2)
     const header = findHeaderRow(sheet, headers, 2)
     if (!header) {
       target.value = { type: 'err', msg: 'Header kolom tidak ketemu. Minimal harus ada kolom No.Waybill dan Biaya Ongkos Kirim.' }
@@ -290,7 +295,7 @@ async function onExport() {
           <div class="toolbar">
             <label class="btn" style="cursor:pointer;">
               {{ uploading === 'gudang' ? '⏳ Memproses…' : '📤 Upload Excel Gudang' }}
-              <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'gudang', GUDANG_HEADERS, gudangStatus)" />
+              <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'gudang', GUDANG_HEADERS)" />
             </label>
             <button class="btn danger" @click="clearAll('gudang')">🗑️ Hapus Semua</button>
           </div>
@@ -303,7 +308,7 @@ async function onExport() {
           <div class="toolbar">
             <label class="btn" style="cursor:pointer;">
               {{ uploading === 'finance' ? '⏳ Memproses…' : '📤 Upload Excel Tagihan' }}
-              <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'finance', FINANCE_HEADERS, financeStatus)" />
+              <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'finance', FINANCE_HEADERS)" />
             </label>
             <button class="btn danger" @click="clearAll('finance')">🗑️ Hapus Semua</button>
           </div>

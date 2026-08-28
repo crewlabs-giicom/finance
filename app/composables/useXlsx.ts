@@ -1,3 +1,5 @@
+import { findHeaderRow, type HeaderAliases } from '~/utils/sheetImport'
+
 /**
  * Import & export Excel. SheetJS di-load dinamis dan hanya di browser —
  * library-nya besar dan tidak ada gunanya masuk bundle SSR.
@@ -8,11 +10,30 @@ export function useXlsx() {
     return await import('xlsx')
   }
 
-  /** Baca file upload jadi array-of-arrays per sheet pertama (baris mentah, tanpa asumsi header). */
-  async function readFileRows(file: File): Promise<unknown[][]> {
+  /**
+   * Baca file upload jadi array-of-arrays (baris mentah, tanpa asumsi header).
+   *
+   * File Excel kadang punya banyak sheet (mis. tab per bulan/rekening), dan sheet
+   * yang lagi aktif waktu file disimpan belum tentu sheet PERTAMA di workbook-nya —
+   * jadi kalau `aliases` dikasih, tiap sheet dicoba satu-satu sampai ketemu yang
+   * baris headernya cocok, bukan langsung asumsi sheet pertama. Kalau gak ada alias
+   * dikasih (atau gak ada sheet yang cocok), balik ke sheet pertama seperti biasa.
+   */
+  async function readFileRows(file: File, aliases?: HeaderAliases, minFields = 2): Promise<unknown[][]> {
     const XLSX = await lib()
     const buf = await file.arrayBuffer()
     const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+    if (!wb.SheetNames.length) return []
+
+    if (aliases) {
+      for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name]
+        if (!sheet) continue
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' }) as unknown[][]
+        if (findHeaderRow(rows, aliases, minFields)) return rows
+      }
+    }
+
     const sheet = wb.Sheets[wb.SheetNames[0]!]
     if (!sheet) return []
     return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' }) as unknown[][]

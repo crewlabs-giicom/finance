@@ -192,7 +192,7 @@ async function onUpload(evt: Event) {
 
   uploading.value = true
   try {
-    const sheet = await readFileRows(file)
+    const sheet = await readFileRows(file, HEADERS, 3)
     const header = findHeaderRow(sheet, HEADERS, 3)
     if (!header) {
       status.value = { type: 'err', msg: 'Header kolom tidak ketemu. File butuh kolom Date, Code, Store, Description, Tags, Debet, Kredit.' }
