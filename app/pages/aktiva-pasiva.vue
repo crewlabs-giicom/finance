@@ -291,14 +291,9 @@ async function onExport() {
         <h2>Aktiva - Pasiva</h2>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
-      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
     <StatusBox :status="status" />
-
-    <div v-if="lockYm" class="lock-banner no-export">
-      🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
-    </div>
 
     <div class="panel no-export">
       <div class="upload-box">
@@ -316,8 +311,11 @@ async function onExport() {
           {{ uploading ? '⏳ Memproses…' : '📤 Upload Excel' }}
           <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="uploading" @change="onUpload" />
         </label>
+        <button class="btn secondary" @click="onExport">📥 Export Excel</button>
+        <div v-if="lockYm" class="lock-banner no-export" style="margin:0 0 0 auto;">
+          🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
+        </div>
       </div>
-      <p class="hint">Wajib pilih COA dulu (Grup opsional). File butuh kolom Date, Code, Store, Description, Tags, Debet, Kredit.</p>
     </div>
 
     <PeriodRangeFilter
@@ -331,7 +329,7 @@ async function onExport() {
       </select>
       <span class="gm-label" style="margin-left:10px;">COA:</span>
       <select v-model="filterCoa">
-        <option value="">Semua COA</option>
+        <option value="">— pilih COA —</option>
         <option v-for="c in coas" :key="c.id" :value="c.id">{{ c.noCoa }} — {{ c.namaCoa }}</option>
       </select>
       <label style="display:flex;align-items:center;gap:5px;margin-left:10px;font-size:12.5px;font-weight:600;cursor:pointer;">
@@ -339,13 +337,15 @@ async function onExport() {
       </label>
     </PeriodRangeFilter>
 
-    <div v-if="!visibleSections.length" class="empty-state">Belum ada data Aktiva-Pasiva sesuai filter ini.</div>
+    <div v-if="!filterCoa" class="empty-state">Pilih COA dulu di filter "COA" di atas buat lihat datanya.</div>
+    <template v-else>
+      <div v-if="!visibleSections.length" class="empty-state">Belum ada data Aktiva-Pasiva sesuai filter ini.</div>
 
-    <div v-for="sec in visibleSections" :key="sec.id || 'none'" class="panel">
-      <div class="group-head">
-        <span class="group-dot" :style="{ background: sec.warna }" />
-        {{ sec.nama }}
-      </div>
+      <div v-for="sec in visibleSections" :key="sec.id || 'none'" class="panel">
+        <div class="group-head">
+          <span class="group-dot" :style="{ background: sec.warna }" />
+          {{ sec.nama }}
+        </div>
 
       <div v-for="cg in sec.coaGroups" :key="cg.coaId" style="margin-bottom:14px;">
         <div class="gm-label" style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">
@@ -438,7 +438,40 @@ async function onExport() {
         </div>
       </div>
     </div>
+    </template>
 
     <RowColorMenu :menu="rowColors.menu" @pick="rowColors.pick" />
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.panel.no-export {
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+.panel.no-export .upload-box {
+  padding: 4px 8px;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.panel.no-export .btn {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+.panel.no-export .gm-label {
+  font-size: 11px;
+}
+.panel.no-export .upload-box select {
+  padding: 4px 7px;
+  font-size: 11px;
+}
+.panel.no-export .lock-banner {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+</style>

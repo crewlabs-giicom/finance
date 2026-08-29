@@ -139,14 +139,17 @@ async function onExport() {
       <div>
         <h2>Daftar Norminatif</h2>
       </div>
-      <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
-      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
     <StatusBox :status="status" />
 
-    <div v-if="lockYm" class="lock-banner no-export">
-      🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
+    <div class="panel no-export">
+      <div class="upload-box">
+        <button class="btn secondary" @click="onExport">📥 Export Excel</button>
+        <div v-if="lockYm" class="lock-banner no-export" style="margin:0 0 0 auto;">
+          🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
+        </div>
+      </div>
     </div>
 
     <PeriodRangeFilter
@@ -166,11 +169,6 @@ async function onExport() {
       </select>
     </PeriodRangeFilter>
 
-    <p class="hint no-export" style="margin-bottom:12px;">
-      NPWP boleh belum dipilih — bisa langsung dipilih atau ditambah di kolom NPWP. Kolom "Bentuk dan Jenis Biaya",
-      "No. Transaksi", dan "Nomor Bukti Potong" bisa diketik di sini. NIK &amp; Alamat mengikuti Master NPWP.
-    </p>
-
     <div v-if="!visibleSections.length" class="empty-state">
       Belum ada data. Pastikan ada baris di List Pajak dengan Tags "PPH 23" atau "21 BP", lalu cek filter periode di atas.
     </div>
@@ -179,6 +177,7 @@ async function onExport() {
       <div class="group-head">
         <span class="group-dot" :style="{ background: sec.warna }" />
         {{ sec.nama }}
+        <button v-if="selectedIds.size" class="btn danger no-export" style="margin-left:auto;" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       </div>
 
       <div class="table-wrap">
@@ -242,3 +241,28 @@ async function onExport() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.panel.no-export {
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+.panel.no-export .upload-box {
+  padding: 4px 8px;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.panel.no-export .btn {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+.panel.no-export .lock-banner {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+</style>

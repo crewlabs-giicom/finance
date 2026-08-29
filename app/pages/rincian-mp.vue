@@ -119,13 +119,16 @@ async function onExport() {
       <div>
         <h2>Rincian MP</h2>
       </div>
-      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
-    <StatusBox :status="status" />
-
-    <div v-if="lockLabel !== 'Belum ada periode yang dikunci'" class="lock-banner no-export">
-      🔒 {{ lockLabel }}
+    <div class="panel no-export">
+      <div class="upload-box">
+        <button class="btn secondary" @click="onExport">📥 Export Excel</button>
+        <div v-if="lockLabel !== 'Belum ada periode yang dikunci'" class="lock-banner no-export" style="margin:0 0 0 auto;">
+          🔒 {{ lockLabel }}
+        </div>
+      </div>
+      <StatusBox :status="status" />
     </div>
 
     <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear">
@@ -207,3 +210,31 @@ async function onExport() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.panel.no-export {
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+.panel.no-export .upload-box {
+  padding: 4px 8px;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.panel.no-export .btn {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+.panel.no-export .gm-label {
+  font-size: 11px;
+}
+.panel.no-export .lock-banner {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+</style>

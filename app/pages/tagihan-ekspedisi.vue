@@ -184,20 +184,6 @@ async function importSheet(
   }
 }
 
-async function clearAll(kind: 'gudang' | 'finance') {
-  const label = kind === 'gudang' ? 'Data Gudang' : 'Tagihan Ekspedisi (Finance)'
-  if (!confirm(`Hapus SEMUA ${label}? Tindakan ini tidak bisa dibatalkan.`)) return
-  try {
-    await api(`/api/te/${kind}/bulk`, { method: 'DELETE' })
-    await loadAll()
-    const target = kind === 'gudang' ? gudangStatus : financeStatus
-    target.value = { type: 'ok', msg: `${label} dikosongkan.` }
-  } catch (e: any) {
-    const target = kind === 'gudang' ? gudangStatus : financeStatus
-    target.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal hapus data.' }
-  }
-}
-
 async function addGudang() {
   if (!addForm.noWaybill.trim()) { gudangStatus.value = { type: 'err', msg: 'No. Waybill wajib diisi.' }; return }
   try {
@@ -272,11 +258,6 @@ async function onExport() {
       <div>
         <h2>Tagihan Ekspedisi</h2>
       </div>
-      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
-    </div>
-
-    <div v-if="lockYm" class="lock-banner no-export">
-      🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
     </div>
 
     <div class="stat-row">
@@ -287,35 +268,22 @@ async function onExport() {
     </div>
 
     <div class="panel no-export">
-      <div class="panel-head"><h3>📥 Input Data</h3></div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <div>
-          <h4 style="margin:0 0 8px;font-size:13px;">📦 Data Gudang</h4>
-          <div class="toolbar">
-            <label class="btn" style="cursor:pointer;">
-              {{ uploading === 'gudang' ? '⏳ Memproses…' : '📤 Upload Excel Gudang' }}
-              <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'gudang', GUDANG_HEADERS)" />
-            </label>
-            <button class="btn danger" @click="clearAll('gudang')">🗑️ Hapus Semua</button>
-          </div>
-          <p class="hint">Kolom: Tanggal, Nama Pengirim, Nama Penerima, INV GII, No.Waybill, Biaya Ongkos Kirim, Keperluan.</p>
-          <StatusBox :status="gudangStatus" />
-        </div>
-
-        <div>
-          <h4 style="margin:0 0 8px;font-size:13px;">🧾 Tagihan Ekspedisi (Finance)</h4>
-          <div class="toolbar">
-            <label class="btn" style="cursor:pointer;">
-              {{ uploading === 'finance' ? '⏳ Memproses…' : '📤 Upload Excel Tagihan' }}
-              <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'finance', FINANCE_HEADERS)" />
-            </label>
-            <button class="btn danger" @click="clearAll('finance')">🗑️ Hapus Semua</button>
-          </div>
-          <p class="hint">Wajib ada kolom No.Waybill &amp; Biaya Ongkos Kirim; kolom lain diabaikan.</p>
-          <StatusBox :status="financeStatus" />
+      <div class="upload-box">
+        <label class="btn" style="cursor:pointer;">
+          {{ uploading === 'gudang' ? '⏳ Memproses…' : '📤 Upload Gudang' }}
+          <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'gudang', GUDANG_HEADERS)" />
+        </label>
+        <label class="btn" style="cursor:pointer;">
+          {{ uploading === 'finance' ? '⏳ Memproses…' : '📤 Upload Tagihan' }}
+          <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="!!uploading" @change="importSheet($event, 'finance', FINANCE_HEADERS)" />
+        </label>
+        <button class="btn secondary" @click="onExport">📥 Export</button>
+        <div v-if="lockYm" class="lock-banner no-export" style="margin:0 0 0 auto;">
+          🔒 {{ lockLabel }}
         </div>
       </div>
+      <StatusBox :status="gudangStatus" />
+      <StatusBox :status="financeStatus" />
     </div>
 
     <PeriodFilter v-model:month="filterMonth" v-model:year="filterYear">
@@ -443,3 +411,10 @@ async function onExport() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+</style>

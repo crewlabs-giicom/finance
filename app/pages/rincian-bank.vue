@@ -295,12 +295,11 @@ async function onExport() {
           <input type="file" accept=".csv,text/csv" style="display:none;" :disabled="importing" @change="onCsvUpload" />
         </label>
         <button class="btn secondary" @click="onExport">📥 Export</button>
-        <button class="btn" :disabled="!selectedAccount" :title="!selectedAccount ? 'Pilih rekening dulu' : ''" @click="openAddModal">+ Tambah Manual</button>
+        <div v-if="lockYm" class="lock-banner no-export" style="margin:0 0 0 auto;">
+          🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
+        </div>
       </div>
       <StatusBox :status="importStatus" />
-      <div v-if="lockYm" class="lock-banner no-export" style="margin:8px 0 0;">
-        🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
-      </div>
     </div>
 
     <div class="toolbar">
@@ -333,7 +332,10 @@ async function onExport() {
     <div v-else class="panel">
       <div class="panel-head">
         <h3><span class="pill">{{ selectedAccount.bankType }}</span> {{ selectedAccount.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ selectedAccount.noRek }})</span></h3>
-        <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
+        <div style="display:flex;gap:8px;">
+          <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
+          <button class="btn no-export" @click="openAddModal">+ Tambah Manual</button>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -464,19 +466,23 @@ async function onExport() {
 }
 
 .panel.no-export {
-  padding: 10px 14px;
-  margin-bottom: 12px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
 }
 .panel.no-export .upload-box {
-  padding: 6px 10px;
-  gap: 8px;
-  margin-bottom: 6px;
+  padding: 4px 8px;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 .panel.no-export .btn {
-  padding: 6px 11px;
-  font-size: 12px;
+  padding: 4px 9px;
+  font-size: 11px;
 }
 .panel.no-export .gm-label {
-  font-size: 11.5px;
+  font-size: 11px;
+}
+.panel.no-export .lock-banner {
+  padding: 4px 8px;
+  font-size: 11px;
 }
 </style>

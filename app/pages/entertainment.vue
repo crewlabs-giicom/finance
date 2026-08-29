@@ -134,17 +134,12 @@ async function onExport() {
         <h2>Entertainment</h2>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
-      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
     <StatusBox :status="status" />
 
-    <div v-if="lockYm" class="lock-banner no-export">
-      🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
-    </div>
-
     <div class="panel no-export">
-      <div class="toolbar">
+      <div class="upload-box">
         <span class="gm-label">+ Tambah manual ke Grup:</span>
         <select v-model="addForm.groupId">
           <option value="">Tanpa Grup</option>
@@ -152,8 +147,11 @@ async function onExport() {
         </select>
         <input v-model="addForm.tanggal" type="date" />
         <button class="btn" @click="addRow">+ Tambah</button>
+        <button class="btn secondary" @click="onExport">📥 Export Excel</button>
+        <div v-if="lockYm" class="lock-banner no-export" style="margin:0 0 0 auto;">
+          🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
+        </div>
       </div>
-      <p class="hint">Semua kolom bisa langsung diketik di tabel. Klik kanan baris untuk mewarnai atau menduplikasi.</p>
     </div>
 
     <PeriodRangeFilter
@@ -238,3 +236,36 @@ async function onExport() {
     <RowColorMenu :menu="rowColors.menu" show-duplicate @pick="rowColors.pick" @duplicate="duplicateRow" />
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.panel.no-export {
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+.panel.no-export .upload-box {
+  padding: 4px 8px;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.panel.no-export .btn {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+.panel.no-export .gm-label {
+  font-size: 11px;
+}
+.panel.no-export .upload-box select,
+.panel.no-export .upload-box input {
+  padding: 4px 7px;
+  font-size: 11px;
+}
+.panel.no-export .lock-banner {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+</style>
