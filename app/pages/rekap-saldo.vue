@@ -15,7 +15,7 @@ type Group = { id: string; nama: string; warna: string | null }
 type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean }
 type Deposito = { id: string; nama: string | null; nominal: number; tglMasuk: string | null; rate: string | null; jatuhTempo: string | null; ket: string | null }
 type Hutang = { id: string; peminjam: string | null; kreditur: string | null; nominal: number; rate: string | null; tglPinjam: string | null; jatuhTempo: string | null; ket: string | null }
-type Bayar = { id: string; pt: string | null; nominal: number; tglBayar: string | null; tglPesan: string | null; noCtr: string | null; payIam: string | null; payEkspds: string | null; ket: string | null }
+type Bayar = { id: string; pt: string | null; groupId: string | null; nominal: number; tglBayar: string | null; tglPesan: string | null; noCtr: string | null; payIam: string | null; payEkspds: string | null; ket: string | null }
 
 const groups = ref<Group[]>([])
 const balances = ref<Balance[]>([])
@@ -91,6 +91,22 @@ function patchDateShort(kind: 'hutang' | 'bayar', row: any, field: string, rawTe
 const totalDeposito = computed(() => deposito.value.reduce((s, d) => s + (d.nominal || 0), 0))
 const totalHutang = computed(() => hutang.value.reduce((s, h) => s + (h.nominal || 0), 0))
 const totalBayar = computed(() => bayar.value.reduce((s, b) => s + (b.nominal || 0), 0))
+
+function bayarForGroup(groupId: string | null) {
+  return bayar.value.filter(b => (b.groupId || null) === groupId)
+}
+const groupsWithBayar = computed(() => groups.value.filter(g => bayarForGroup(g.id).length))
+const noGroupBayar = computed(() => bayarForGroup(null))
+function bayarSubtotal(rows: Bayar[]) {
+  return rows.reduce((s, r) => s + (r.nominal || 0), 0)
+}
+/** Warna baris Bayar: warna manual (klik kanan) menang kalau ada, else warna Group-nya. */
+function bayarRowStyle(b: Bayar, groupWarna?: string | null) {
+  const manual = bayarColors.colorOf(b.id)
+  if (manual) return `background:${manual}`
+  if (groupWarna) return `background:${groupWarna}`
+  return ''
+}
 
 const filteredBalances = computed(() => picFilter.value ? balances.value.filter(b => b.pic === picFilter.value) : balances.value)
 function balancesForGroup(groupId: string | null) {
@@ -189,9 +205,9 @@ async function deleteBalance(id: string) {
 
       <div v-for="g in groupsWithBalances" :key="g.id" style="margin-bottom:10px;">
         <div class="table-wrap">
-          <table class="dense" :data-sheet="g.nama">
+          <table class="dense bank-dense" :data-sheet="g.nama">
             <colgroup>
-              <col style="width:10%"><col style="width:18%"><col style="width:17%"><col style="width:17%"><col style="width:13%"><col style="width:14%"><col style="width:11%">
+              <col style="width:10%"><col style="width:21%"><col style="width:17%"><col style="width:17%"><col style="width:16%"><col style="width:8%"><col style="width:11%">
             </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
@@ -219,8 +235,8 @@ async function deleteBalance(id: string) {
               </tr>
               <tr class="subtotal-row" :style="g.warna ? `background:${g.warna}` : 'background:#F1F1F1'">
                 <td colspan="2">TOTAL {{ g.nama }}</td>
-                <td class="num">Rp {{ subtotal(balancesForGroup(g.id)).saldo.toLocaleString('id-ID') }}</td>
-                <td class="num">Rp {{ subtotal(balancesForGroup(g.id)).bisaDipakai.toLocaleString('id-ID') }}</td>
+                <td class="num">{{ subtotal(balancesForGroup(g.id)).saldo.toLocaleString('id-ID') }}</td>
+                <td class="num">{{ subtotal(balancesForGroup(g.id)).bisaDipakai.toLocaleString('id-ID') }}</td>
                 <td colspan="3"></td>
               </tr>
             </tbody>
@@ -230,9 +246,9 @@ async function deleteBalance(id: string) {
 
       <div v-if="noGroupBalances.length" style="margin-bottom:10px;">
         <div class="table-wrap">
-          <table class="dense" data-sheet="Tanpa Grup">
+          <table class="dense bank-dense" data-sheet="Tanpa Grup">
             <colgroup>
-              <col style="width:10%"><col style="width:18%"><col style="width:17%"><col style="width:17%"><col style="width:13%"><col style="width:14%"><col style="width:11%">
+              <col style="width:10%"><col style="width:21%"><col style="width:17%"><col style="width:17%"><col style="width:16%"><col style="width:8%"><col style="width:11%">
             </colgroup>
             <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
             <tbody>
@@ -260,8 +276,8 @@ async function deleteBalance(id: string) {
               </tr>
               <tr class="subtotal-row" style="background:#F1F1F1">
                 <td colspan="2">TOTAL Tanpa Grup</td>
-                <td class="num">Rp {{ subtotal(noGroupBalances).saldo.toLocaleString('id-ID') }}</td>
-                <td class="num">Rp {{ subtotal(noGroupBalances).bisaDipakai.toLocaleString('id-ID') }}</td>
+                <td class="num">{{ subtotal(noGroupBalances).saldo.toLocaleString('id-ID') }}</td>
+                <td class="num">{{ subtotal(noGroupBalances).bisaDipakai.toLocaleString('id-ID') }}</td>
                 <td colspan="3"></td>
               </tr>
             </tbody>
@@ -270,15 +286,15 @@ async function deleteBalance(id: string) {
       </div>
 
       <div class="table-wrap" style="margin-top:6px;">
-        <table class="dense" data-sheet="Total Bank">
+        <table class="dense bank-dense" data-sheet="Total Bank">
           <colgroup>
             <col style="width:58%"><col style="width:21%"><col style="width:21%">
           </colgroup>
           <tbody>
             <tr class="grand-total-row">
               <td>TOTAL BANK</td>
-              <td class="num">Rp {{ grandTotal.saldo.toLocaleString('id-ID') }}</td>
-              <td class="num">Rp {{ grandTotal.bisaDipakai.toLocaleString('id-ID') }}</td>
+              <td class="num">{{ grandTotal.saldo.toLocaleString('id-ID') }}</td>
+              <td class="num">{{ grandTotal.bisaDipakai.toLocaleString('id-ID') }}</td>
             </tr>
           </tbody>
         </table>
@@ -320,17 +336,29 @@ async function deleteBalance(id: string) {
               @contextmenu="depositoColors.open($event, d.id)"
               title="Klik kanan buat warnain baris"
             >
-              <td><input type="text" :value="d.nama" class="cell-edit" style="width:120px;" @change="patchRow('deposito', d, 'nama', ($event.target as HTMLInputElement).value)" /></td>
+              <td>
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                  :value="d.nama" @input="autoGrow($event.target)"
+                  @change="patchRow('deposito', d, 'nama', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
               <td class="num"><input type="text" :value="d.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('deposito', d, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="date" :value="d.tglMasuk" style="width:130px;" @change="patchRow('deposito', d, 'tglMasuk', ($event.target as HTMLInputElement).value || null)" /></td>
               <td><input type="text" :value="d.rate" class="cell-edit" style="width:70px;" @change="patchRow('deposito', d, 'rate', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="date" :value="d.jatuhTempo" style="width:130px;" @change="patchRow('deposito', d, 'jatuhTempo', ($event.target as HTMLInputElement).value || null)" /></td>
-              <td><input type="text" :value="d.ket" class="cell-edit" style="width:140px;" @change="patchRow('deposito', d, 'ket', ($event.target as HTMLInputElement).value)" /></td>
+              <td>
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                  :value="d.ket" @input="autoGrow($event.target)"
+                  @change="patchRow('deposito', d, 'ket', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
               <td><span class="row-del" @click="deleteRow('deposito', d.id)">✕</span></td>
             </tr>
             <tr v-if="deposito.length" class="subtotal-row">
               <td>TOTAL</td>
-              <td class="num">Rp {{ totalDeposito.toLocaleString('id-ID') }}</td>
+              <td class="num">{{ totalDeposito.toLocaleString('id-ID') }}</td>
               <td colspan="5"></td>
             </tr>
           </tbody>
@@ -346,7 +374,7 @@ async function deleteBalance(id: string) {
       <div class="table-wrap">
         <table class="dense" data-sheet="Hutang">
           <colgroup>
-            <col style="width:13%"><col style="width:13%"><col style="width:17%"><col style="width:5%"><col style="width:10%"><col style="width:12%"><col style="width:24%"><col style="width:6%">
+            <col style="width:13%"><col style="width:13%"><col style="width:17%"><col style="width:5%"><col style="width:13%"><col style="width:14%"><col style="width:19%"><col style="width:6%">
           </colgroup>
           <thead><tr><th>Peminjam</th><th>Kreditur</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Pinjam</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
@@ -357,8 +385,20 @@ async function deleteBalance(id: string) {
               @contextmenu="hutangColors.open($event, h.id)"
               title="Klik kanan buat warnain baris"
             >
-              <td><input type="text" :value="h.peminjam" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'peminjam', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="h.kreditur" class="cell-edit" style="width:110px;" @change="patchRow('hutang', h, 'kreditur', ($event.target as HTMLInputElement).value)" /></td>
+              <td>
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                  :value="h.peminjam" @input="autoGrow($event.target)"
+                  @change="patchRow('hutang', h, 'peminjam', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
+              <td>
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                  :value="h.kreditur" @input="autoGrow($event.target)"
+                  @change="patchRow('hutang', h, 'kreditur', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
               <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchRow('hutang', h, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
               <td><input type="text" :value="h.rate" class="cell-edit" style="width:44px;" @change="patchRow('hutang', h, 'rate', ($event.target as HTMLInputElement).value)" /></td>
               <td><input type="text" :value="formatDateShort(h.tglPinjam)" placeholder="dd/mm/yy" @change="patchDateShort('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value)" /></td>
@@ -368,12 +408,18 @@ async function deleteBalance(id: string) {
                   <span v-if="h.jatuhTempo && h.jatuhTempo < today" class="pill overdue" style="margin-left:0;">Lewat tempo</span>
                 </div>
               </td>
-              <td><input type="text" :value="h.ket" class="cell-edit" style="width:140px;" @change="patchRow('hutang', h, 'ket', ($event.target as HTMLInputElement).value)" /></td>
+              <td>
+                <textarea
+                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                  :value="h.ket" @input="autoGrow($event.target)"
+                  @change="patchRow('hutang', h, 'ket', ($event.target as HTMLTextAreaElement).value)"
+                ></textarea>
+              </td>
               <td><span class="row-del" @click="deleteRow('hutang', h.id)">✕</span></td>
             </tr>
             <tr v-if="hutang.length" class="subtotal-row">
               <td colspan="2">TOTAL</td>
-              <td class="num">Rp {{ totalHutang.toLocaleString('id-ID') }}</td>
+              <td class="num">{{ totalHutang.toLocaleString('id-ID') }}</td>
               <td colspan="5"></td>
             </tr>
           </tbody>
@@ -386,40 +432,144 @@ async function deleteBalance(id: string) {
         <h3>🧾 Bayar</h3>
         <button class="btn" @click="addRow('bayar')">+ Tambah</button>
       </div>
-      <div class="table-wrap">
-        <table class="dense" data-sheet="Bayar">
+
+      <div v-for="g in groupsWithBayar" :key="g.id" style="margin-bottom:10px;">
+        <div class="table-wrap">
+          <table class="dense" :data-sheet="`Bayar ${g.nama}`">
+            <colgroup>
+              <col style="width:9%"><col style="width:20%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:16%"><col style="width:6%">
+            </colgroup>
+            <thead><tr><th>Group</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
+            <tbody>
+              <tr
+                v-for="b in bayarForGroup(g.id)" :key="b.id"
+                :style="bayarRowStyle(b, g.warna)"
+                @contextmenu="bayarColors.open($event, b.id)"
+                title="Klik kanan buat warnain baris"
+              >
+                <td>
+                  <select :value="b.groupId" @change="patchRow('bayar', b, 'groupId', ($event.target as HTMLSelectElement).value || null)">
+                    <option value="">Tanpa Grup</option>
+                    <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
+                  </select>
+                </td>
+                <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td><input type="text" :value="formatDateShort(b.tglBayar)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value)" /></td>
+                <td><input type="text" :value="formatDateShort(b.tglPesan)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value)" /></td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.noCtr" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'noCtr', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.payIam" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'payIam', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.payEkspds" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'payEkspds', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.ket" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'ket', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td><span class="row-del" @click="deleteRow('bayar', b.id)">✕</span></td>
+              </tr>
+              <tr class="subtotal-row" :style="g.warna ? `background:${g.warna}` : 'background:#F1F1F1'">
+                <td>TOTAL {{ g.nama }}</td>
+                <td class="num">{{ bayarSubtotal(bayarForGroup(g.id)).toLocaleString('id-ID') }}</td>
+                <td colspan="7"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-if="noGroupBayar.length" style="margin-bottom:10px;">
+        <div class="table-wrap">
+          <table class="dense" data-sheet="Bayar Tanpa Grup">
+            <colgroup>
+              <col style="width:9%"><col style="width:20%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:16%"><col style="width:6%">
+            </colgroup>
+            <thead><tr><th>Group</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
+            <tbody>
+              <tr
+                v-for="b in noGroupBayar" :key="b.id"
+                :style="bayarRowStyle(b)"
+                @contextmenu="bayarColors.open($event, b.id)"
+                title="Klik kanan buat warnain baris"
+              >
+                <td>
+                  <select :value="b.groupId" @change="patchRow('bayar', b, 'groupId', ($event.target as HTMLSelectElement).value || null)">
+                    <option value="">Tanpa Grup</option>
+                    <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
+                  </select>
+                </td>
+                <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td><input type="text" :value="formatDateShort(b.tglBayar)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value)" /></td>
+                <td><input type="text" :value="formatDateShort(b.tglPesan)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value)" /></td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.noCtr" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'noCtr', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.payIam" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'payIam', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.payEkspds" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'payEkspds', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td>
+                  <textarea
+                    :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
+                    :value="b.ket" @input="autoGrow($event.target)"
+                    @change="patchRow('bayar', b, 'ket', ($event.target as HTMLTextAreaElement).value)"
+                  ></textarea>
+                </td>
+                <td><span class="row-del" @click="deleteRow('bayar', b.id)">✕</span></td>
+              </tr>
+              <tr class="subtotal-row" style="background:#F1F1F1">
+                <td>TOTAL Tanpa Grup</td>
+                <td class="num">{{ bayarSubtotal(noGroupBayar).toLocaleString('id-ID') }}</td>
+                <td colspan="7"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-if="!bayar.length" class="empty-state">Belum ada data bayar.</div>
+
+      <div class="table-wrap" style="margin-top:6px;">
+        <table class="dense" data-sheet="Bayar Total">
           <colgroup>
-            <col style="width:9%"><col style="width:20%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:16%"><col style="width:6%">
+            <col style="width:75%"><col style="width:25%">
           </colgroup>
-          <thead><tr><th>PT</th><th class="num">Nominal</th><th>Tgl Bayar</th><th>Tgl Pesan</th><th>No Ctr</th><th>Pay IAM</th><th>Pay Ekspds</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
-            <tr v-if="!bayar.length"><td colspan="9" class="empty-state">Belum ada data bayar.</td></tr>
-            <tr
-              v-for="b in bayar" :key="b.id"
-              :style="bayarColors.colorOf(b.id) ? `background:${bayarColors.colorOf(b.id)}` : ''"
-              @contextmenu="bayarColors.open($event, b.id)"
-              title="Klik kanan buat warnain baris"
-            >
-              <td><input type="text" :value="b.pt" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'pt', ($event.target as HTMLInputElement).value)" /></td>
-              <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:130px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
-              <td><input type="text" :value="formatDateShort(b.tglBayar)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="formatDateShort(b.tglPesan)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="b.noCtr" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'noCtr', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="b.payIam" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'payIam', ($event.target as HTMLInputElement).value)" /></td>
-              <td><input type="text" :value="b.payEkspds" class="cell-edit" style="width:90px;" @change="patchRow('bayar', b, 'payEkspds', ($event.target as HTMLInputElement).value)" /></td>
-              <td>
-                <textarea
-                  :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"
-                  :value="b.ket" @input="autoGrow($event.target)"
-                  @change="patchRow('bayar', b, 'ket', ($event.target as HTMLTextAreaElement).value)"
-                ></textarea>
-              </td>
-              <td><span class="row-del" @click="deleteRow('bayar', b.id)">✕</span></td>
-            </tr>
-            <tr v-if="bayar.length" class="subtotal-row">
-              <td>TOTAL</td>
-              <td class="num">Rp {{ totalBayar.toLocaleString('id-ID') }}</td>
-              <td colspan="7"></td>
+            <tr class="grand-total-row">
+              <td>TOTAL BAYAR</td>
+              <td class="num">{{ totalBayar.toLocaleString('id-ID') }}</td>
             </tr>
           </tbody>
         </table>
@@ -475,5 +625,17 @@ async function deleteBalance(id: string) {
   white-space: normal;
   word-break: break-word;
   line-height: 1.3;
+}
+
+/* Baris card Saldo Rekening Bank dibikin lebih pendek dari default .dense —
+   selector lebih spesifik ini otomatis menang, jadi card Deposito/Hutang/Bayar gak ikut kepengaruh. */
+.rekap-grid table.dense.bank-dense thead th,
+.rekap-grid table.dense.bank-dense tbody td {
+  padding: 1px 5px;
+}
+.rekap-grid table.dense.bank-dense input,
+.rekap-grid table.dense.bank-dense select {
+  height: 18px;
+  padding: 0 3px;
 }
 </style>

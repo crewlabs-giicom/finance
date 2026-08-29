@@ -291,6 +291,7 @@ export const hutangRows = sqliteTable('hutang_rows', {
 export const bayarRows = sqliteTable('bayar_rows', {
   id: text('id').primaryKey(),
   pt: text('pt').default(''),
+  groupId: text('group_id').references(() => bankGroups.id),
   nominal: real('nominal').notNull().default(0),
   tglBayar: text('tgl_bayar'),
   tglPesan: text('tgl_pesan'),

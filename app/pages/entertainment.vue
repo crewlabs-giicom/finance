@@ -72,16 +72,6 @@ async function patchRow(r: EntRow, patch: Partial<EntRow>) {
   }
 }
 
-async function deleteRow(r: EntRow) {
-  if (!confirm('Hapus baris ini?')) return
-  try {
-    await api(`/api/ent/${r.id}`, { method: 'DELETE' })
-    rows.value = rows.value.filter(x => x.id !== r.id)
-  } catch (e: any) {
-    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal hapus baris.' }
-  }
-}
-
 const multi = useMultiSelect()
 const selectedIds = multi.selectedIds
 async function deleteSelected() {
@@ -179,10 +169,9 @@ async function onExport() {
           <thead>
             <tr>
               <th class="no-export"><input type="checkbox" :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(sec.rows.map(r => r.id))" /></th>
-              <th class="no-export"></th>
               <th>Tanggal</th><th>Place</th><th>Alamat</th><th>Description</th><th>Jenis</th>
               <th class="num">Amount</th><th>Client's Name</th><th>Posisi</th><th>Company</th>
-              <th>Jenis Usaha</th><th>Note</th>
+              <th>Jenis Usaha</th><th>No Bank</th>
             </tr>
           </thead>
           <tbody>
@@ -193,10 +182,6 @@ async function onExport() {
               @contextmenu="rowColors.open($event, r.id)"
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
-              <td class="no-export">
-                <span v-if="r.sourceTxnId" title="Berasal dari transaksi bank">🔗</span>
-                <span class="row-del" @click="deleteRow(r)">✕</span>
-              </td>
               <td><input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { tanggal: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="r.place" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { place: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="r.alamat" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { alamat: ($event.target as HTMLInputElement).value })" /></td>
@@ -222,7 +207,6 @@ async function onExport() {
               </td>
             </tr>
             <tr class="subtotal-row">
-              <td class="no-export"></td>
               <td class="no-export"></td>
               <td colspan="5">Subtotal {{ sec.nama }} ({{ sec.rows.length }} baris)</td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + (r.amount || 0), 0)) }}</td>

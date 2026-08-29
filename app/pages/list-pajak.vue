@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, autoGrow, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { MONTH_NAMES, autoGrow, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -55,7 +55,13 @@ function inPeriod(r: PpnRow) {
 const visibleSections = computed(() =>
   sections.value
     .filter(s => !filterGroup.value || (s.id || '') === filterGroup.value)
-    .map(s => ({ ...s, rows: rows.value.filter(r => (r.groupId || '') === (s.id || '') && inPeriod(r)) }))
+    .map(s => ({
+      ...s,
+      rows: rows.value.filter(r =>
+        (r.groupId || '') === (s.id || '') && inPeriod(r) &&
+        (!filterMasaKredit.value || r.masaKredit === filterMasaKredit.value)
+      )
+    }))
     .filter(s => s.rows.length)
 )
 
@@ -78,17 +84,44 @@ const masaKreditSummary = computed(() => {
 
 const kreditYears = Array.from({ length: 6 }, (_, i) => today.getFullYear() - 3 + i)
 
-/**
- * Formula otomatis per Tag, diport dari ppnComputeTagFormula():
- * DPP = Debet / 11%, lalu dikali tarif masing-masing jenis pajak.
- */
-function tagFormula(tag: string, debet: number): Partial<PpnRow> {
-  const base = (debet || 0) / 0.11
-  if (tag === 'PPH 23') return { pph23: Math.round(base * 0.02) }
-  if (tag === 'PP 23') return { pph23_4a2: Math.round(base * 0.005) }
-  if (tag === 'PPH 4') return { pph23_4a2: Math.round(base * 0.10) }
-  if (tag === '21 BP') return { pph21bp: Math.round(base * 0.025) }
-  return {}
+/** Mirror computeTagFormula() di server/utils/tagSync.ts — beberapa tag pajak bisa
+ *  aktif sekaligus, tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. Semua
+ *  tarif langsung dari nilai Debet (bukan dari DPP/Debet-dibagi-11%). */
+function computeTagFormula(tagList: string[], debet: number) {
+  const d = debet || 0
+  let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null
+  if (tagList.includes('PPH 23')) pph23 = Math.round(d * 0.02)
+  if (tagList.includes('PP 23')) pph23_4a2 = Math.round(d * 0.005)
+  if (tagList.includes('Final') || tagList.includes('PPH 4')) pph23_4a2 = Math.round(d * 0.10)
+  if (tagList.includes('21 BP')) pph21bp = Math.round(d * 0.025)
+  return { pph23, pph23_4a2, pph21bp }
+}
+
+// -- klik buat pilih tag, bisa lebih dari satu (disimpen comma-separated), pola sama kayak Rincian Bank --
+function clampMenuPos(evt: MouseEvent, menuWidth: number, menuHeight: number) {
+  const x = Math.min(evt.clientX, window.innerWidth - menuWidth - 8)
+  const y = Math.min(evt.clientY, window.innerHeight - menuHeight - 8)
+  return { x: Math.max(8, x), y: Math.max(8, y) }
+}
+const tagMenu = reactive({ visible: false, x: 0, y: 0, targetId: '' })
+function openTagMenu(evt: MouseEvent, id: string) {
+  evt.stopPropagation()
+  const pos = clampMenuPos(evt, 170, Math.min(260, 40 + tags.value.length * 27))
+  tagMenu.visible = true
+  tagMenu.x = pos.x
+  tagMenu.y = pos.y
+  tagMenu.targetId = id
+}
+function closeTagMenu() { tagMenu.visible = false }
+const tagMenuSelected = computed(() => parseTagList(rows.value.find(x => x.id === tagMenu.targetId)?.tags))
+async function toggleTag(tagName: string) {
+  const r = rows.value.find(x => x.id === tagMenu.targetId)
+  if (!r) return
+  const list = parseTagList(r.tags)
+  const i = list.indexOf(tagName)
+  if (i > -1) list.splice(i, 1)
+  else list.push(tagName)
+  await patchRow(r, { tags: list.join(','), ...computeTagFormula(list, r.debet) })
 }
 
 async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
@@ -100,11 +133,6 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
     status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal update baris.' }
     await loadAll()
   }
-}
-
-/** Ganti tag = reset kolom pajak turunan, lalu isi ulang sesuai formula tag baru. */
-async function onTagChange(r: PpnRow, tag: string) {
-  await patchRow(r, { tags: tag, pph23: null, pph23_4a2: null, pph21bp: null, ...tagFormula(tag, r.debet) })
 }
 
 async function onMasaKredit(r: PpnRow, part: 'y' | 'm', value: string) {
@@ -123,15 +151,6 @@ async function addRow(groupId: string | null) {
     rows.value.push(created)
   } catch (e: any) {
     status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal tambah baris.' }
-  }
-}
-async function deleteRow(r: PpnRow) {
-  if (!confirm('Hapus baris ini?')) return
-  try {
-    await api(`/api/ppn/${r.id}`, { method: 'DELETE' })
-    rows.value = rows.value.filter(x => x.id !== r.id)
-  } catch (e: any) {
-    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal hapus baris.' }
   }
 }
 
@@ -220,7 +239,7 @@ async function onUpload(evt: Event) {
         tags: tag,
         debet,
         kredit: parseSheetNumber(at('kredit')),
-        ...tagFormula(tag, debet)
+        ...computeTagFormula(tag ? [tag] : [], debet)
       }
       const key = dupKey(cand as PpnRow)
       if (seen.has(key)) { dup++; continue }
@@ -259,7 +278,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
 </script>
 
 <template>
-  <div ref="root" @click="rowColors.close()">
+  <div ref="root" @click="rowColors.close(); closeTagMenu()">
     <div class="topbar">
       <div>
         <h2>List Pajak</h2>
@@ -327,8 +346,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
           <thead>
             <tr>
               <th class="no-export"><input type="checkbox" :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(sec.rows.map(r => r.id))" /></th>
-              <th class="no-export"></th>
-              <th>Tanggal</th><th>Code</th><th>Store</th><th>Description</th><th>Tags</th>
+              <th>Tanggal</th><th>No Bank</th><th>Store</th><th>Description</th><th>Tags</th>
               <th class="num">Debet</th><th class="num">Kredit</th>
               <th>NPWP</th><th>No Invoice</th>
               <th class="num">PPh 23</th><th class="num">Final</th><th class="num">PPh 21 BP</th>
@@ -343,7 +361,6 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               @contextmenu="rowColors.open($event, r.id)"
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
-              <td class="no-export"><span class="row-del" @click="deleteRow(r)">✕</span></td>
               <td>
                 <input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)"
                   @change="patchRow(r, { tanggal: ($event.target as HTMLInputElement).value })" />
@@ -358,10 +375,11 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
                 ></textarea>
               </td>
               <td>
-                <select :value="r.tags" :disabled="isLocked(r.tanggal)" @change="onTagChange(r, ($event.target as HTMLSelectElement).value)">
-                  <option value="">-</option>
-                  <option v-for="t in tags" :key="t.id" :value="t.nama">{{ t.nama }}</option>
-                </select>
+                <span
+                  class="tag-cell" style="width:90px;"
+                  :title="isLocked(r.tanggal) ? 'Periode terkunci' : 'Klik buat pilih tag (bisa lebih dari satu)'"
+                  @click="!isLocked(r.tanggal) && openTagMenu($event, r.id)"
+                >{{ r.tags ? r.tags.split(',').join(', ') : '-' }}</span>
               </td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.debet, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { debet: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.kredit, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { kredit: parseNum(($event.target as HTMLInputElement).value) })" /></td>
@@ -391,7 +409,6 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
             </tr>
             <tr class="subtotal-row">
               <td class="no-export"></td>
-              <td class="no-export"></td>
               <td colspan="5">Subtotal {{ sec.nama }} ({{ sec.rows.length }} baris)</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'debet')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'kredit')) }}</td>
@@ -407,6 +424,19 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
     </div>
 
     <RowColorMenu :menu="rowColors.menu" show-duplicate @pick="rowColors.pick" @duplicate="duplicateRow" />
+
+    <div
+      v-if="tagMenu.visible" class="panel tag-picker-menu"
+      style="position:fixed;z-index:50;padding:8px;width:170px;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.18);"
+      :style="{ top: tagMenu.y + 'px', left: tagMenu.x + 'px' }"
+      @click.stop
+    >
+      <div v-if="!tags.length" class="hint">Belum ada tag. Tambahin dulu di Master Data.</div>
+      <label v-for="tg in tags" :key="tg.id" style="display:flex;align-items:center;gap:6px;padding:4px 2px;font-size:12.5px;cursor:pointer;">
+        <input type="checkbox" :checked="tagMenuSelected.includes(tg.nama)" @change="toggleTag(tg.nama)" />
+        {{ tg.nama }}
+      </label>
+    </div>
   </div>
 </template>
 

@@ -70,8 +70,14 @@ export function hitungBisaDipakai(saldo: number): number {
 export function autoGrow(el: HTMLTextAreaElement | EventTarget | null) {
   const ta = el as HTMLTextAreaElement | null
   if (!ta) return
-  ta.style.height = 'auto'
-  ta.style.height = ta.scrollHeight + 'px'
+  // Defer ke frame berikutnya — di tabel table-layout:fixed dengan banyak textarea
+  // yang mount bareng, scrollHeight kadang keukur sebelum lebar kolom final
+  // kesettle di browser, jadi nge-lock tinggi yang kekecilan buat teks yang
+  // butuh 2+ baris (baris lanjutannya ke-overflow:hidden, keliatan kepotong).
+  requestAnimationFrame(() => {
+    ta.style.height = 'auto'
+    ta.style.height = ta.scrollHeight + 'px'
+  })
 }
 
 export function sumBy<T>(arr: T[], key: keyof T): number {

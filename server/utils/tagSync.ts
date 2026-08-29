@@ -14,14 +14,15 @@ export function parseTagList(raw: string | null | undefined): string[] {
   return (raw || '').split(',').map(s => s.trim()).filter(Boolean)
 }
 
-/** Beberapa tag pajak bisa aktif sekaligus — tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. */
+/** Beberapa tag pajak bisa aktif sekaligus — tiap tag ngisi kolom pajaknya sendiri, gak
+ *  saling timpa. Semua tarif langsung dari nilai Debet (bukan dari DPP/Debet-dibagi-11%). */
 function computeTagFormula(tags: string[], debet: number) {
-  const base = debet / 0.11
+  const d = debet || 0
   let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null
-  if (tags.includes('PPH 23')) pph23 = Math.round(base * 0.02)
-  if (tags.includes('PP 23')) pph23_4a2 = Math.round(base * 0.005)
-  if (tags.includes('PPH 4')) pph23_4a2 = Math.round(base * 0.10)
-  if (tags.includes('21 BP')) pph21bp = Math.round(base * 0.025)
+  if (tags.includes('PPH 23')) pph23 = Math.round(d * 0.02)
+  if (tags.includes('PP 23')) pph23_4a2 = Math.round(d * 0.005)
+  if (tags.includes('Final') || tags.includes('PPH 4')) pph23_4a2 = Math.round(d * 0.10)
+  if (tags.includes('21 BP')) pph21bp = Math.round(d * 0.025)
   return { pph23, pph23_4a2, pph21bp }
 }
 

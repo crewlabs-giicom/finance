@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { bayarRows } from '../../../database/schema'
 
-const FIELDS = ['pt', 'nominal', 'tglBayar', 'tglPesan', 'noCtr', 'payIam', 'payEkspds', 'ket']
+const FIELDS = ['pt', 'groupId', 'nominal', 'tglBayar', 'tglPesan', 'noCtr', 'payIam', 'payEkspds', 'ket']
 const DATE_FIELDS = new Set(['tglBayar', 'tglPesan'])
 
 export default defineEventHandler(async (event) => {
