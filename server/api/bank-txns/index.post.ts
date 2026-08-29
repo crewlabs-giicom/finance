@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
   const kredit = Number(body?.kredit) || 0
   const side = noBankSide(debet, kredit)
   const autoNoBank = side ? await generateNoBank(accountId, side, tanggal) : null
+  const urutan = await nextUrutan()
 
   const row = {
     id,
@@ -33,7 +34,8 @@ export default defineEventHandler(async (event) => {
     tag: '',
     noteManual: '',
     checked: false,
-    manual: true
+    manual: true,
+    urutan
   }
   await db.insert(bankTxns).values(row)
   const saldo = await recomputeAccountSaldo(accountId)

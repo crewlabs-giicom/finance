@@ -109,6 +109,11 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
     if (!noRek) {
       const m = first.match(/No\.\s*rekening\s*:\s*(\S+)/i)
       if (m) noRek = m[1]!.trim()
+      // Versi export BCA perorangan nulisnya beda: "No. Rekening,=,'5075164952" —
+      // titik dua diganti koma+"=" dan value-nya di field ke-3, bukan nempel di field 1.
+      else if (/^No\.\s*rekening$/i.test(first.trim()) && rows[i]?.[2]) {
+        noRek = String(rows[i]![2]).trim()
+      }
     }
     if (!periodeStart) {
       const pm = first.match(/Periode\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i)
@@ -117,18 +122,30 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
         periodeEnd = { d: +pm[4]!, m: +pm[5]!, y: +pm[6]! }
       }
     }
-    if ((rows[i]?.[0] || '').trim() === 'Tanggal Transaksi' && (rows[i]?.[1] || '').trim() === 'Keterangan') {
+    const f0 = (rows[i]?.[0] || '').trim()
+    const f1 = (rows[i]?.[1] || '').trim()
+    if ((f0 === 'Tanggal Transaksi' || f0 === 'Tanggal') && f1 === 'Keterangan') {
       headerIdx = i
       break
     }
   }
+  // Nomor rekening di versi perorangan ditulis dengan petik satu di depan (biar Excel
+  // gak nganggep angkanya sebagai number dan buang nol di depan) — bukan bagian nomornya.
+  noRek = noRek.replace(/^'/, '')
+
+  // Versi Bisnis: header "Tanggal Transaksi", Jumlah+arah digabung 1 kolom ("5,000,000.00 CR").
+  // Versi Perorangan: header cuma "Tanggal", Jumlah & arah (DB/CR) kepisah jadi 2 kolom sendiri,
+  // dan ada 1 kolom kosong tanpa nama di antara Jumlah dan Saldo.
+  const isSplitDbCr = (rows[headerIdx]?.[0] || '').trim() === 'Tanggal'
+  const minCols = isSplitDbCr ? 6 : 5
 
   const txns: ParsedTxn[] = []
   if (headerIdx > -1) {
     for (let i = headerIdx + 1; i < rows.length; i++) {
       const r = rows[i]
-      if (!r || r.length < 5) continue
-      const tanggalRaw = (r[0] || '').trim()
+      if (!r || r.length < minCols) continue
+      // Petik satu di depan tanggal, sama alasannya kayak nomor rekening di atas.
+      const tanggalRaw = (r[0] || '').replace(/^'/, '').trim()
       if (!tanggalRaw) continue
       if (/^saldo awal/i.test(tanggalRaw) || /^mutasi/i.test(tanggalRaw) || /^saldo akhir/i.test(tanggalRaw)) break
       if (tanggalRaw.toUpperCase() === 'PEND') continue // belum posting final, dilewati
@@ -153,15 +170,31 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
       if (!tanggal) continue
 
       const keterangan = (r[1] || '').replace(/\s+/g, ' ').trim()
-      const cabang = (r[2] || '').trim()
-      const jm = (r[3] || '').trim().match(/^([\d.,]+)\s*(CR|DB)$/i)
-      let debet = 0, kredit = 0
-      if (jm) {
-        const amt = parseFloat(jm[1]!.replace(/,/g, '')) || 0
-        if (jm[2]!.toUpperCase() === 'CR') kredit = amt
-        else debet = amt
+      const cabang = (r[2] || '').replace(/^'/, '').trim()
+      let debet = 0, kredit = 0, saldoRaw = ''
+      if (isSplitDbCr) {
+        // Versi Perorangan: Jumlah polos di r[3] ("14000.00"), arah DB/CR sendiri di r[4].
+        const amt = parseFloat((r[3] || '').trim().replace(/,/g, '')) || 0
+        const dir = (r[4] || '').trim().toUpperCase()
+        if (dir === 'CR') kredit = amt
+        else if (dir === 'DB') debet = amt
+        saldoRaw = (r[5] || '').trim()
+      } else {
+        const jm = (r[3] || '').trim().match(/^([\d.,]+)\s*(CR|DB)$/i)
+        if (jm) {
+          const amt = parseFloat(jm[1]!.replace(/,/g, '')) || 0
+          if (jm[2]!.toUpperCase() === 'CR') kredit = amt
+          else debet = amt
+        }
+        saldoRaw = (r[4] || '').trim()
       }
-      txns.push({ tanggal, transaksi: keterangan, cabang, debet, kredit })
+      // Kolom Saldo dipakai sebagai importRef internal buat dedup — bukan "No Bank"
+      // yang keliatan di UI. Perlu karena beberapa baris beda bisa punya tanggal+
+      // keterangan+nominal identik persis (mis. beberapa transfer identik di hari
+      // yang sama), yang cuma bisa dibedain dari saldo berjalannya yang beda.
+      const saldoRowVal = saldoRaw ? parseFloat(saldoRaw.replace(/,/g, '')) : NaN
+      const importRef = Number.isFinite(saldoRowVal) ? String(saldoRowVal) : undefined
+      txns.push({ tanggal, transaksi: keterangan, cabang, debet, kredit, importRef })
     }
   }
 
@@ -170,7 +203,7 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
     // Baris ini gak dibungkus quote di file aslinya, jadi angkanya ("46,680,645.00") bisa
     // ke-pecah ke beberapa "kolom" gara-gara koma ribuannya kebaca sebagai pemisah CSV —
     // digabung balik pakai koma biar regex-nya tetap kebaca utuh.
-    const m = r.join(',').match(/Saldo Awal\s*:\s*([\d.,\-]+)/i)
+    const m = r.join(',').match(/Saldo Awal[\s,]*[:=][\s,]*([\d.,\-]+)/i)
     if (m) { saldoAwal = parseFloat(m[1]!.replace(/,/g, '')); break }
   }
 

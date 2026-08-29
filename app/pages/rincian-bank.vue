@@ -3,12 +3,13 @@ import { autoGrow, parseTagList } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
+const { lockYm, label: lockLabel, refresh: refreshLock } = usePeriodLock()
 type Account = { id: string; groupId: string | null; picId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Txn = {
   id: string; accountId: string; tanggal: string; transaksi: string; cabang: string | null;
   debet: number; kredit: number; saldo: number; bankType: string | null;
   noBankManual: string | null; ketTransaksiManual: string | null; tag: string | null;
-  noteManual: string | null; checked: boolean; manual: boolean
+  noteManual: string | null; checked: boolean; manual: boolean; urutan: number | null
 }
 type Tag = { id: string; nama: string }
 type RowColor = { id: string; entityKind: string; entityId: string; color: string }
@@ -37,7 +38,7 @@ async function loadAll() {
     api('/api/row-colors')
   ])
 }
-await Promise.all([loadAll(), loadPics()])
+await Promise.all([loadAll(), loadPics(), refreshLock()])
 try {
   const me = await api<{ picId: string | null }>('/api/auth/me')
   if (me.picId) filterPic.value = me.picId
@@ -60,7 +61,7 @@ const selectedAccount = computed(() => accounts.value.find(a => a.id === filterA
 function txnsForAccount(accId: string) {
   return txns.value
     .filter(t => t.accountId === accId && t.tanggal >= filterDateFrom.value && t.tanggal <= filterDateTo.value)
-    .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : 0))
+    .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : (a.urutan ?? 0) - (b.urutan ?? 0)))
 }
 
 // -- pagination tabel transaksi --
@@ -80,6 +81,16 @@ function goToPage(p: number) {
 
 function rowColor(id: string) {
   return rowColors.value.find(c => c.entityKind === 'rbtxn' && c.entityId === id)?.color || ''
+}
+
+/** Warna baris: warna manual (klik kanan) menang kalau ada; kalau enggak, otomatis merah
+ * kalau Debet keisi, hijau kalau Kredit keisi — dua-duanya gak akan bareng dalam satu baris. */
+function rowStyle(t: Txn) {
+  const manual = rowColor(t.id)
+  if (manual) return `background:${manual}`
+  if (t.debet > 0) return 'background:var(--red-bg)'
+  if (t.kredit > 0) return 'background:var(--green-bg)'
+  return ''
 }
 
 // -- popup tambah transaksi manual (satu form, target-nya selalu selectedAccount) --
@@ -217,7 +228,7 @@ async function toggleTag(tagName: string) {
 // -- import CSV mutasi bank --
 // Parsing & dedup dikerjakan di server (server/api/bank-txns/import-csv.post.ts),
 // halaman ini cuma mengirim isi file mentahnya.
-const { exportTables } = useXlsx()
+const { exportTablesColored } = useXlsx()
 const importing = ref(false)
 const importStatus = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -264,7 +275,7 @@ const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
   if (!tables.length) return
-  await exportTables(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'Rincian_Bank')
+  await exportTablesColored(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'Rincian_Bank')
 }
 </script>
 
@@ -274,7 +285,6 @@ async function onExport() {
       <div>
         <h2>Rincian Bank</h2>
       </div>
-      <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
     </div>
 
     <div class="panel no-export">
@@ -288,6 +298,9 @@ async function onExport() {
         <button class="btn" :disabled="!selectedAccount" :title="!selectedAccount ? 'Pilih rekening dulu' : ''" @click="openAddModal">+ Tambah Manual</button>
       </div>
       <StatusBox :status="importStatus" />
+      <div v-if="lockYm" class="lock-banner no-export" style="margin:8px 0 0;">
+        🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
+      </div>
     </div>
 
     <div class="toolbar">
@@ -320,6 +333,7 @@ async function onExport() {
     <div v-else class="panel">
       <div class="panel-head">
         <h3><span class="pill">{{ selectedAccount.bankType }}</span> {{ selectedAccount.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ selectedAccount.noRek }})</span></h3>
+        <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
       </div>
 
       <div class="table-wrap">
@@ -345,7 +359,7 @@ async function onExport() {
             <tr
               v-for="(t, i) in pagedTxns"
               :key="t.id"
-              :style="rowColor(t.id) ? `background:${rowColor(t.id)}` : ''"
+              :style="rowStyle(t)"
               @contextmenu="openColorMenu($event, t.id)"
               title="Klik kanan buat warnain / duplicate baris"
             >
@@ -447,5 +461,22 @@ async function onExport() {
 .table-wrap {
   max-height: 520px;
   overflow-y: auto;
+}
+
+.panel.no-export {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.panel.no-export .upload-box {
+  padding: 6px 10px;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.panel.no-export .btn {
+  padding: 6px 11px;
+  font-size: 12px;
+}
+.panel.no-export .gm-label {
+  font-size: 11.5px;
 }
 </style>

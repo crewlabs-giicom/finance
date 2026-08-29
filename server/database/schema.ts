@@ -78,7 +78,12 @@ export const bankTxns = sqliteTable('bank_txns', {
   manual: integer('manual', { mode: 'boolean' }).notNull().default(false),
   // Referensi internal buat dedup import (mis. Journal No. BNI) — bukan field yang
   // ditampilkan/diisi user, beda dari noBankManual (kolom "No Bank" yang keliatan di UI).
-  importRef: text('import_ref')
+  importRef: text('import_ref'),
+  // Tie-breaker urutan tampilan buat transaksi yang tanggalnya sama — baris baru
+  // (manual/import) selalu dapet nilai paling besar (nongol paling bawah di
+  // tanggal itu), baris hasil Duplicate disisipin di antara urutan sumber dan
+  // baris berikutnya (fractional indexing) biar nongol PERSIS di bawahnya.
+  urutan: real('urutan')
 })
 
 // ---------- Rincian MP (marketplace toko per grup) ----------

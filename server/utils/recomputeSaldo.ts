@@ -15,7 +15,7 @@ export async function recomputeAccountSaldo(accountId: string, csvSaldoAwal?: nu
 
   const txns = await db.select().from(bankTxns)
     .where(eq(bankTxns.accountId, accountId))
-    .orderBy(asc(bankTxns.tanggal), asc(bankTxns.id))
+    .orderBy(asc(bankTxns.tanggal), asc(bankTxns.urutan))
 
   let baseline = acc.saldoAwal
   if (baseline === null || baseline === undefined) {

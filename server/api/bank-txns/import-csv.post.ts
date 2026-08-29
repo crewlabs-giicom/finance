@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
     if (t.importRef) seen.add(txnDupKeyWithRef(t as any, t.importRef))
   }
   const lockYm = await getPeriodLockYm()
+  let urutanCounter = await nextUrutan()
 
   const toInsert: typeof bankTxns.$inferInsert[] = []
   const touchedAccounts = new Map<string, number | null>()
@@ -45,7 +46,8 @@ export default defineEventHandler(async (event) => {
       cabang: t.cabang, debet: t.debet, kredit: t.kredit, saldo: 0,
       bankType: acc.bankType, noBankManual: '', importRef: t.importRef || null,
       ketTransaksiManual: deriveKetTransaksi(t.transaksi),
-      tag: '', noteManual: '', checked: false, manual: false
+      tag: '', noteManual: '', checked: false, manual: false,
+      urutan: urutanCounter++
     })
     if (!touchedAccounts.has(acc.id)) touchedAccounts.set(acc.id, saldoAwal)
   }
