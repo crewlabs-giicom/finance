@@ -39,7 +39,11 @@ export const bankAccounts = sqliteTable('bank_accounts', {
   noRek: text('no_rek').notNull(),
   // null = baseline belum ditentukan; diisi dari header "Saldo Awal" file CSV
   // waktu import, atau diturunkan dari transaksi tertua yang sudah punya saldo.
-  saldoAwal: real('saldo_awal')
+  saldoAwal: real('saldo_awal'),
+  // Prefix format buat auto-generate kolom "No Bank" di Rincian Bank, mis. "BKCA/" ->
+  // jadi "BKCA/2026/08/". Null/kosong = auto-generate dimatikan buat sisi itu.
+  noBankFormatDebet: text('no_bank_format_debet'),
+  noBankFormatKredit: text('no_bank_format_kredit')
 })
 
 // ---------- Rekap Saldo: Saldo Rekening Bank (mirrors original app's `bank[]` array) ----------

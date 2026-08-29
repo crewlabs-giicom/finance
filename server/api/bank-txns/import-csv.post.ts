@@ -119,6 +119,10 @@ export default defineEventHandler(async (event) => {
     ringkasanRekening = `${acc.namaRek} (${acc.noRek})`
   }
 
+  // Auto-generate "No Bank" buat baris yang rekeningnya punya format diset di Master Data.
+  const autoNoBank = await generateNoBankBatch(toInsert.map(t => ({ accountId: t.accountId, debet: t.debet, kredit: t.kredit, tanggal: t.tanggal! })))
+  toInsert.forEach((t, i) => { if (autoNoBank[i]) t.noBankManual = autoNoBank[i]! })
+
   for (let i = 0; i < toInsert.length; i += 500) {
     await db.insert(bankTxns).values(toInsert.slice(i, i + 500))
   }

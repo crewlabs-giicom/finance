@@ -80,8 +80,25 @@ export function detectCsvFormat(rows: string[][]): 'bca' | 'bri' | 'bni' | null 
   return null
 }
 
+/**
+ * Sebagian export BCA (mis. hasil "Save As" ulang lewat Excel, atau copy-paste dari
+ * internet banking) kena double-quote — satu baris yang aslinya `"03/08/2026","Ket",...`
+ * malah kebungkus lagi jadi SATU field gede `"03/08/2026,""Ket"",..."`. csvParseLines
+ * udah bener nge-unescape `""` jadi `"`, tapi hasilnya masih 1 field gabungan (bukan
+ * per-kolom) karena semua koma ketutup di dalam quote terluar itu. Baris kayak gini,
+ * setelah unescape, isinya udah berupa teks CSV normal lagi — jadi tinggal di-parse ulang.
+ */
+function unwrapDoubleQuotedRow(row: string[]): string[] {
+  if (row.length === 1 && row[0]!.includes(',')) {
+    const reparsed = csvParseLines(row[0]!)
+    if (reparsed.length === 1 && reparsed[0]!.length > 1) return reparsed[0]!
+  }
+  return row
+}
+
 /** BCA: Tanggal Transaksi | Keterangan | Cabang | Jumlah (CR/DB) | Saldo */
 export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[]; saldoAwal: number | null } {
+  rows = rows.map(unwrapDoubleQuotedRow)
   let noRek = ''
   let headerIdx = -1
   let periodeStart: { d: number; m: number; y: number } | null = null
@@ -150,7 +167,10 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
 
   let saldoAwal: number | null = null
   for (const r of rows) {
-    const m = (r[0] || '').match(/Saldo Awal\s*:\s*([\d.,\-]+)/i)
+    // Baris ini gak dibungkus quote di file aslinya, jadi angkanya ("46,680,645.00") bisa
+    // ke-pecah ke beberapa "kolom" gara-gara koma ribuannya kebaca sebagai pemisah CSV —
+    // digabung balik pakai koma biar regex-nya tetap kebaca utuh.
+    const m = r.join(',').match(/Saldo Awal\s*:\s*([\d.,\-]+)/i)
     if (m) { saldoAwal = parseFloat(m[1]!.replace(/,/g, '')); break }
   }
 

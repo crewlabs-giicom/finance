@@ -11,5 +11,6 @@ export default defineEventHandler(async (event) => {
   const { id: _old, ...rest } = row
   await db.insert(bankTxns).values({ ...rest, id: newId })
   await syncTagDerivedRows(newId)
-  return { ...rest, id: newId }
+  const saldo = await recomputeAccountSaldo(rest.accountId)
+  return { ...rest, id: newId, saldo: saldo ?? rest.saldo }
 })

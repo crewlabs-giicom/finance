@@ -243,6 +243,11 @@ textarea.wrap-textarea:focus { border-color: var(--accent); background: #fff; }
   padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px;
   background: #fbfcff; margin-bottom: 10px;
 }
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-box { width: 440px; max-width: 90vw; }
 .lock-banner {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 8px 12px; border-radius: 8px; font-size: 12.5px;

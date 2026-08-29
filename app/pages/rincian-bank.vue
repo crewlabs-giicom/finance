@@ -82,21 +82,27 @@ function rowColor(id: string) {
   return rowColors.value.find(c => c.entityKind === 'rbtxn' && c.entityId === id)?.color || ''
 }
 
-// -- add manual form state (per account) --
-const addForm = reactive<Record<string, { tanggal: string; transaksi: string; cabang: string; debet: string; kredit: string }>>({})
-function formFor(accId: string) {
-  if (!addForm[accId]) addForm[accId] = { tanggal: '', transaksi: '', cabang: '', debet: '', kredit: '' }
-  return addForm[accId]
+// -- popup tambah transaksi manual (satu form, target-nya selalu selectedAccount) --
+const showAddModal = ref(false)
+const addModalForm = reactive({ tanggal: '', transaksi: '', cabang: '', debet: '', kredit: '' })
+function openAddModal() {
+  if (!selectedAccount.value) return
+  Object.assign(addModalForm, { tanggal: '', transaksi: '', cabang: '', debet: '', kredit: '' })
+  showAddModal.value = true
 }
-async function addTxn(accId: string) {
-  const f = formFor(accId)
-  if (!f.tanggal) { alert('Isi tanggal transaksi dulu.'); return }
+function closeAddModal() { showAddModal.value = false }
+async function submitAddModal() {
+  if (!selectedAccount.value) return
+  if (!addModalForm.tanggal) { alert('Isi tanggal transaksi dulu.'); return }
   try {
     await api('/api/bank-txns', {
       method: 'POST',
-      body: { accountId: accId, tanggal: f.tanggal, transaksi: f.transaksi, cabang: f.cabang, debet: Number(f.debet) || 0, kredit: Number(f.kredit) || 0 }
+      body: {
+        accountId: selectedAccount.value.id, tanggal: addModalForm.tanggal, transaksi: addModalForm.transaksi,
+        cabang: addModalForm.cabang, debet: Number(addModalForm.debet) || 0, kredit: Number(addModalForm.kredit) || 0
+      }
     })
-    addForm[accId] = { tanggal: '', transaksi: '', cabang: '', debet: '', kredit: '' }
+    showAddModal.value = false
     await loadAll()
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal nambah transaksi.')
@@ -269,16 +275,17 @@ async function onExport() {
         <h2>Rincian Bank</h2>
       </div>
       <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
-      <button class="btn secondary no-export" @click="onExport">📥 Export Excel</button>
     </div>
 
     <div class="panel no-export">
       <div class="upload-box">
         <span class="gm-label">Import mutasi bank:</span>
         <label class="btn" style="cursor:pointer;">
-          {{ importing ? '⏳ Memproses…' : '📤 Upload CSV (BCA / BRI / BNI)' }}
+          {{ importing ? '⏳ Memproses…' : '📤 Upload' }}
           <input type="file" accept=".csv,text/csv" style="display:none;" :disabled="importing" @change="onCsvUpload" />
         </label>
+        <button class="btn secondary" @click="onExport">📥 Export</button>
+        <button class="btn" :disabled="!selectedAccount" :title="!selectedAccount ? 'Pilih rekening dulu' : ''" @click="openAddModal">+ Tambah Manual</button>
       </div>
       <StatusBox :status="importStatus" />
     </div>
@@ -313,16 +320,6 @@ async function onExport() {
     <div v-else class="panel">
       <div class="panel-head">
         <h3><span class="pill">{{ selectedAccount.bankType }}</span> {{ selectedAccount.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ selectedAccount.noRek }})</span></h3>
-      </div>
-
-      <div class="toolbar">
-        <span class="gm-label">+ Tambah manual:</span>
-        <input type="date" v-model="formFor(selectedAccount.id).tanggal" />
-        <input type="text" v-model="formFor(selectedAccount.id).transaksi" placeholder="Transaksi..." style="width:200px;" />
-        <input type="text" v-model="formFor(selectedAccount.id).cabang" placeholder="Cabang" style="width:80px;" />
-        <input type="number" v-model="formFor(selectedAccount.id).debet" placeholder="Debet" style="width:100px;" />
-        <input type="number" v-model="formFor(selectedAccount.id).kredit" placeholder="Kredit" style="width:100px;" />
-        <button class="btn" @click="addTxn(selectedAccount.id)">+ Tambah</button>
       </div>
 
       <div class="table-wrap">
@@ -425,6 +422,23 @@ async function onExport() {
         <input type="checkbox" :checked="tagMenuSelected.includes(tg.nama)" @change="toggleTag(tg.nama)" />
         {{ tg.nama }}
       </label>
+    </div>
+
+    <div v-if="showAddModal" class="modal-backdrop" @click.self="closeAddModal" @keydown.esc="closeAddModal">
+      <div class="panel modal-box">
+        <h3 style="margin:0 0 12px;">+ Tambah Transaksi Manual</h3>
+        <div class="toolbar" style="margin-bottom:14px;">
+          <input type="date" v-model="addModalForm.tanggal" />
+          <input type="text" v-model="addModalForm.transaksi" placeholder="Transaksi..." style="width:100%;" />
+          <input type="text" v-model="addModalForm.cabang" placeholder="Cabang" />
+          <input type="number" v-model="addModalForm.debet" placeholder="Debet" />
+          <input type="number" v-model="addModalForm.kredit" placeholder="Kredit" />
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn secondary" @click="closeAddModal">Batal</button>
+          <button class="btn" @click="submitAddModal">+ Tambah</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

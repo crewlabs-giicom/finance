@@ -11,6 +11,8 @@ export default defineEventHandler(async (event) => {
   if (body.bankType !== undefined) patch.bankType = String(body.bankType)
   if (body.groupId !== undefined) patch.groupId = body.groupId || null
   if (body.picId !== undefined) patch.picId = body.picId || null
+  if (body.noBankFormatDebet !== undefined) patch.noBankFormatDebet = String(body.noBankFormatDebet).trim() || null
+  if (body.noBankFormatKredit !== undefined) patch.noBankFormatKredit = String(body.noBankFormatKredit).trim() || null
   if (Object.keys(patch).length === 0) throw createError({ statusCode: 400, statusMessage: 'Gak ada field yang diupdate.' })
   await db.update(bankAccounts).set(patch).where(eq(bankAccounts.id, id))
   return { ok: true }

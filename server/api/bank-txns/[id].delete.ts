@@ -8,5 +8,6 @@ export default defineEventHandler(async (event) => {
   await assertNotLocked(row.tanggal)
   await detachDerivedRows(id)
   await db.delete(bankTxns).where(eq(bankTxns.id, id))
+  await recomputeAccountSaldo(row.accountId)
   return { ok: true }
 })

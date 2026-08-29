@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { parseNum } from '~/utils/format'
+import { findHeaderRow } from '~/utils/sheetImport'
 
 const api = useApi()
 const { load: loadGroups } = useGroups()
 const { load: loadPics } = usePics()
 const { lockYm, label: lockLabel, refresh: refreshLock, setLock } = usePeriodLock()
+const { readFileRows } = useXlsx()
 
 type Group = { id: string; nama: string; warna: string | null; urutan: number; picId: string | null }
-type Account = { id: string; groupId: string | null; picId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
+type Account = {
+  id: string; groupId: string | null; picId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null
+  noBankFormatDebet: string | null; noBankFormatKredit: string | null
+}
 type Npwp = { id: string; noNpwp: string; namaNpwp: string; nik: string | null; alamat: string | null }
 type Coa = { id: string; noCoa: string; namaCoa: string }
 type Tag = { id: string; nama: string }
@@ -154,6 +159,57 @@ const deleteNpwp = (id: string) => {
   return run(() => api(`/api/master/npwp/${id}`, { method: 'DELETE' }), 'NPWP dihapus.')
 }
 
+const NPWP_HEADERS = {
+  noNpwp: ['NO. NPWP', 'NO NPWP', 'NPWP'],
+  namaNpwp: ['NAMA NPWP', 'NAMA'],
+  nik: ['NIK'],
+  alamat: ['ALAMAT']
+}
+const uploadingNpwp = ref(false)
+async function onNpwpUpload(evt: Event) {
+  const input = evt.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  uploadingNpwp.value = true
+  try {
+    const sheet = await readFileRows(file, NPWP_HEADERS, 2)
+    const header = findHeaderRow(sheet, NPWP_HEADERS, 2)
+    if (!header) {
+      status.value = { type: 'err', msg: 'Header kolom tidak ketemu. Minimal butuh kolom No. NPWP dan Nama.' }
+      return
+    }
+
+    const seen = new Set(npwps.value.map(n => n.noNpwp.trim().toUpperCase()))
+    const payload: Record<string, unknown>[] = []
+    let dup = 0, invalid = 0
+
+    for (let i = header.index + 1; i < sheet.length; i++) {
+      const r = sheet[i] || []
+      const at = (f: string) => header.map[f] === undefined ? '' : r[header.map[f]!]
+      const noNpwp = String(at('noNpwp') || '').trim()
+      const namaNpwp = String(at('namaNpwp') || '').trim()
+      if (!noNpwp || !namaNpwp) { invalid++; continue }
+      const key = noNpwp.toUpperCase()
+      if (seen.has(key)) { dup++; continue }
+      seen.add(key)
+      payload.push({ noNpwp, namaNpwp, nik: String(at('nik') || '').trim(), alamat: String(at('alamat') || '').trim() })
+    }
+
+    const res = await api<{ inserted: number; skipped: number }>('/api/master/npwp/bulk', { method: 'POST', body: { rows: payload } })
+    await loadAll()
+
+    let msg = `${res.inserted} NPWP diimpor, ${dup} duplikat dilewati`
+    if (invalid) msg += `, ${invalid} baris tanpa No. NPWP/Nama dilewati`
+    status.value = { type: res.inserted ? 'ok' : 'err', msg: msg + '.' }
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || e?.message || 'Gagal baca file Excel.' }
+  } finally {
+    uploadingNpwp.value = false
+  }
+}
+
 const addCoa = () => {
   if (!newCoa.noCoa.trim() || !newCoa.namaCoa.trim()) return
   return run(async () => {
@@ -242,86 +298,34 @@ function groupLabel(id: string | null) {
     <StatusBox :status="status" />
 
     <div class="panel">
-      <div class="panel-head"><h3>🔒 Kunci Periode</h3></div>
+      <div class="panel-head"><h3>🧾 Master NPWP</h3></div>
       <div class="toolbar">
-        <span class="gm-label">Kunci sampai bulan:</span>
-        <input v-model="lockInput" type="month" />
-        <button class="btn" @click="applyLock">Terapkan</button>
-        <button class="btn secondary" @click="lockInput = ''; applyLock()">Buka Kunci</button>
-        <span class="pill">{{ lockLabel }}</span>
+        <input v-model="newNpwp.noNpwp" placeholder="No. NPWP" style="width:170px;" />
+        <input v-model="newNpwp.namaNpwp" placeholder="Nama NPWP" style="width:190px;" />
+        <input v-model="newNpwp.nik" placeholder="NIK" style="width:160px;" />
+        <input v-model="newNpwp.alamat" placeholder="Alamat" style="width:220px;" @keyup.enter="addNpwp" />
+        <button class="btn" @click="addNpwp">+ Tambah NPWP</button>
+        <label class="btn secondary" style="cursor:pointer;">
+          {{ uploadingNpwp ? '⏳ Memproses…' : '📤 Upload' }}
+          <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="uploadingNpwp" @change="onNpwpUpload" />
+        </label>
       </div>
-      <p class="hint">
-        Data yang tanggalnya di bulan terkunci ke bawah tidak bisa ditambah, diubah, atau dihapus di seluruh menu.
-        Aturan ini ditegakkan di server, jadi berlaku untuk semua pengguna.
-      </p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>🏢 Grup</h3></div>
-      <div class="toolbar">
-        <input v-model="newGroupNama" placeholder="Nama grup (misal: GIM)" @keyup.enter="addGroup" />
-        <button class="btn" @click="addGroup">+ Tambah Grup</button>
-      </div>
-      <div v-if="!groups.length" class="empty-state">Belum ada grup.</div>
-      <div v-else class="chip-row">
-        <span v-for="(g, i) in groups" :key="g.id" class="chip" :style="{ background: g.warna || undefined, color: '#1e2433' }">
-          <span class="chip-move-col">
-            <span class="chip-move" :class="{ disabled: i === 0 }" @click="moveGroup(i, -1)">▲</span>
-            <span class="chip-move" :class="{ disabled: i === groups.length - 1 }" @click="moveGroup(i, 1)">▼</span>
-          </span>
-          <input type="text" class="chip-edit" :value="g.nama" size="1" @change="renameGroup(g, ($event.target as HTMLInputElement).value)" />
-          <select class="chip-pic" :value="g.picId" :title="'PIC penanggung jawab grup ini'" @change="setGroupPic(g, ($event.target as HTMLSelectElement).value)">
-            <option value="">Tanpa PIC</option>
-            <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
-          </select>
-          <span class="chip-del" @click="deleteGroup(g.id)">✕</span>
-        </span>
-      </div>
-      <p class="hint">PIC di tiap grup dipakai buat preset "Filter Grup" otomatis ke grup dia sendiri waktu user itu login, di semua menu.</p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>🙋 PIC</h3></div>
-      <div class="toolbar">
-        <input v-model="newPicNama" placeholder="Nama PIC (misal: AND)" @keyup.enter="addPic" />
-        <button class="btn" @click="addPic">+ Tambah PIC</button>
-      </div>
-      <div v-if="!picList.length" class="empty-state">Belum ada PIC.</div>
-      <div v-else class="chip-row">
-        <span v-for="(p, i) in picList" :key="p.id" class="chip">
-          <span class="chip-move-col">
-            <span class="chip-move" :class="{ disabled: i === 0 }" @click="movePic(i, -1)">▲</span>
-            <span class="chip-move" :class="{ disabled: i === picList.length - 1 }" @click="movePic(i, 1)">▼</span>
-          </span>
-          <input type="text" class="chip-edit" :value="p.nama" size="1" @change="renamePic(p, ($event.target as HTMLInputElement).value)" />
-          <span class="chip-del" @click="deletePic(p.id)">✕</span>
-        </span>
-      </div>
-      <p class="hint">Dipakai buat kolom &amp; filter PIC di Rekap Saldo. Link ke user login diatur di bawah.</p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>🔗 User &amp; PIC</h3></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>PIC</th></tr></thead>
+          <thead><tr><th></th><th>No. NPWP</th><th>Nama</th><th>NIK</th><th>Alamat</th></tr></thead>
           <tbody>
-            <tr v-if="!userList.length"><td colspan="4" class="empty-state">Belum ada user.</td></tr>
-            <tr v-for="u in userList" :key="u.id">
-              <td>{{ u.name }}</td>
-              <td>{{ u.email }}</td>
-              <td><span class="pill">{{ u.role }}</span></td>
-              <td>
-                <select :value="u.picId" style="width:140px;" @change="setUserPic(u, ($event.target as HTMLSelectElement).value)">
-                  <option value="">Semua PIC</option>
-                  <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
-                </select>
-              </td>
+            <tr v-if="!npwps.length"><td colspan="5" class="empty-state">Belum ada NPWP.</td></tr>
+            <tr v-for="n in npwps" :key="n.id">
+              <td><span class="row-del" @click="deleteNpwp(n.id)">✕</span></td>
+              <td><input class="cell-input" :value="n.noNpwp" @change="patchNpwp(n, { noNpwp: ($event.target as HTMLInputElement).value })" /></td>
+              <td><input class="cell-input" :value="n.namaNpwp" @change="patchNpwp(n, { namaNpwp: ($event.target as HTMLInputElement).value })" /></td>
+              <td><input class="cell-input" :value="n.nik" @change="patchNpwp(n, { nik: ($event.target as HTMLInputElement).value })" /></td>
+              <td><input class="cell-input" style="min-width:220px;" :value="n.alamat" @change="patchNpwp(n, { alamat: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="hint">Kalau user punya PIC, filter PIC di Rekap Saldo otomatis ke-preset ke PIC-nya waktu dia login (tetap bisa diganti ke "Semua PIC").</p>
+      <p class="hint">NIK &amp; Alamat dipakai di Daftar Norminatif. Upload Excel butuh kolom No. NPWP dan Nama (NIK &amp; Alamat opsional); No. NPWP yang udah ada dilewati otomatis.</p>
     </div>
 
     <div class="panel">
@@ -352,10 +356,10 @@ function groupLabel(id: string | null) {
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th></th><th>Bank</th><th>Grup</th><th>PIC</th><th>Nama Rekening</th><th>No. Rekening</th><th class="num">Saldo Awal</th></tr>
+            <tr><th></th><th>Bank</th><th>Grup</th><th>PIC</th><th>Nama Rekening</th><th>No. Rekening</th><th class="num">Saldo Awal</th><th>Format No Bank (Debet)</th><th>Format No Bank (Kredit)</th></tr>
           </thead>
           <tbody>
-            <tr v-if="!accounts.length"><td colspan="7" class="empty-state">Belum ada rekening.</td></tr>
+            <tr v-if="!accounts.length"><td colspan="9" class="empty-state">Belum ada rekening.</td></tr>
             <tr v-for="a in accounts" :key="a.id">
               <td><span class="row-del" @click="deleteAccount(a.id)">✕</span></td>
               <td>
@@ -385,99 +389,180 @@ function groupLabel(id: string | null) {
                   @change="patchAccount(a, { saldoAwal: ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value) })"
                 />
               </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="hint">Saldo awal jadi baseline perhitungan saldo berjalan di Rincian Bank. Kosongkan agar diisi otomatis dari file CSV saat import (BCA/BRI) — khusus BNI file mutasinya gak nyimpen saldo sama sekali, jadi wajib diisi manual.</p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>🏷️ Tag Transaksi</h3></div>
-      <div class="toolbar">
-        <input v-model="newTag" placeholder="Nama tag (misal: PPH 23)" @keyup.enter="addTag" />
-        <button class="btn" @click="addTag">+ Tambah Tag</button>
-      </div>
-      <div v-if="!tags.length" class="empty-state">Belum ada tag.</div>
-      <div v-else class="chip-row">
-        <span v-for="t in tags" :key="t.id" class="chip">{{ t.nama }}<span class="chip-del" @click="deleteTag(t.id)">✕</span></span>
-      </div>
-      <p class="hint">Tag "PPH 23", "PP 23", "PPH 4", dan "21 BP" memicu perhitungan otomatis kolom pajak di List Pajak.</p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>🧾 Master NPWP</h3></div>
-      <div class="toolbar">
-        <input v-model="newNpwp.noNpwp" placeholder="No. NPWP" style="width:170px;" />
-        <input v-model="newNpwp.namaNpwp" placeholder="Nama NPWP" style="width:190px;" />
-        <input v-model="newNpwp.nik" placeholder="NIK" style="width:160px;" />
-        <input v-model="newNpwp.alamat" placeholder="Alamat" style="width:220px;" @keyup.enter="addNpwp" />
-        <button class="btn" @click="addNpwp">+ Tambah NPWP</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th></th><th>No. NPWP</th><th>Nama</th><th>NIK</th><th>Alamat</th></tr></thead>
-          <tbody>
-            <tr v-if="!npwps.length"><td colspan="5" class="empty-state">Belum ada NPWP.</td></tr>
-            <tr v-for="n in npwps" :key="n.id">
-              <td><span class="row-del" @click="deleteNpwp(n.id)">✕</span></td>
-              <td><input class="cell-input" :value="n.noNpwp" @change="patchNpwp(n, { noNpwp: ($event.target as HTMLInputElement).value })" /></td>
-              <td><input class="cell-input" :value="n.namaNpwp" @change="patchNpwp(n, { namaNpwp: ($event.target as HTMLInputElement).value })" /></td>
-              <td><input class="cell-input" :value="n.nik" @change="patchNpwp(n, { nik: ($event.target as HTMLInputElement).value })" /></td>
-              <td><input class="cell-input" style="min-width:220px;" :value="n.alamat" @change="patchNpwp(n, { alamat: ($event.target as HTMLInputElement).value })" /></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="hint">NIK &amp; Alamat dipakai di Daftar Norminatif.</p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>📚 Master COA</h3></div>
-      <div class="toolbar">
-        <input v-model="newCoa.noCoa" placeholder="No. COA" style="width:140px;" />
-        <input v-model="newCoa.namaCoa" placeholder="Nama COA" style="width:220px;" @keyup.enter="addCoa" />
-        <button class="btn" @click="addCoa">+ Tambah COA</button>
-      </div>
-      <div v-if="!coas.length" class="empty-state">Belum ada COA. Modul Aktiva-Pasiva butuh minimal satu COA.</div>
-      <div v-else class="chip-row">
-        <span v-for="c in coas" :key="c.id" class="chip">{{ c.noCoa }} — {{ c.namaCoa }}<span class="chip-del" @click="deleteCoa(c.id)">✕</span></span>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><h3>🏪 Toko Marketplace</h3></div>
-      <div class="toolbar">
-        <select v-model="newStore.groupId">
-          <option value="">Tanpa Grup</option>
-          <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.nama }}</option>
-        </select>
-        <input v-model="newStore.platform" placeholder="Platform (Shopee, Tokopedia…)" style="width:180px;" />
-        <input v-model="newStore.nama" placeholder="Nama toko" style="width:180px;" />
-        <input v-model="newStore.saldoAwal" placeholder="Saldo awal" style="width:130px;text-align:right;" @keyup.enter="addStore" />
-        <button class="btn" @click="addStore">+ Tambah Toko</button>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th></th><th>Grup</th><th>Platform</th><th>Nama Toko</th><th class="num">Saldo Awal</th></tr></thead>
-          <tbody>
-            <tr v-if="!stores.length"><td colspan="5" class="empty-state">Belum ada toko.</td></tr>
-            <tr v-for="st in stores" :key="st.id">
-              <td><span class="row-del" @click="deleteStore(st)">✕</span></td>
-              <td>{{ groupLabel(st.groupId) }}</td>
-              <td>{{ st.platform }}</td>
-              <td><input class="cell-input" :value="st.nama" @change="patchStore(st, { nama: ($event.target as HTMLInputElement).value })" /></td>
-              <td class="num">
+              <td>
                 <input
-                  class="cell-input" style="text-align:right;"
-                  :value="st.saldoAwal" @change="patchStore(st, { saldoAwal: parseNum(($event.target as HTMLInputElement).value) })"
+                  class="cell-input" style="min-width:110px;" placeholder="mis. BKCA/"
+                  :value="a.noBankFormatDebet ?? ''" title="Contoh: isi 'BKCA/' -> No Bank otomatis jadi 'BKCA/2026/08/' waktu Debet keisi."
+                  @change="patchAccount(a, { noBankFormatDebet: ($event.target as HTMLInputElement).value })"
+                />
+              </td>
+              <td>
+                <input
+                  class="cell-input" style="min-width:110px;" placeholder="mis. BKCA/"
+                  :value="a.noBankFormatKredit ?? ''" title="Contoh: isi 'BKCA/' -> No Bank otomatis jadi 'BKCA/2026/08/' waktu Kredit keisi."
+                  @change="patchAccount(a, { noBankFormatKredit: ($event.target as HTMLInputElement).value })"
                 />
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="hint">Saldo awal dipakai sebagai baseline perhitungan saldo berjalan toko di Rincian MP.</p>
+      <p class="hint">Saldo awal jadi baseline perhitungan saldo berjalan di Rincian Bank. Kosongkan agar diisi otomatis dari file CSV saat import (BCA/BRI) — khusus BNI file mutasinya gak nyimpen saldo sama sekali, jadi wajib diisi manual.</p>
+      <p class="hint">
+        Format No Bank: isi mis. "BKCA/" di kolom Debet/Kredit rekening ini, nanti kolom "No Bank" di Rincian Bank otomatis
+        keisi "BKCA/2026/08/" (tahun/bulan dari tanggal transaksinya) begitu sisi Debet atau Kredit-nya keisi — cuma buat
+        baris yang No Bank-nya masih kosong, gak nimpa yang udah diisi manual. Kosongkan buat matiin.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🔗 User &amp; PIC</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>PIC</th></tr></thead>
+          <tbody>
+            <tr v-if="!userList.length"><td colspan="4" class="empty-state">Belum ada user.</td></tr>
+            <tr v-for="u in userList" :key="u.id">
+              <td>{{ u.name }}</td>
+              <td>{{ u.email }}</td>
+              <td><span class="pill">{{ u.role }}</span></td>
+              <td>
+                <select :value="u.picId" style="width:140px;" @change="setUserPic(u, ($event.target as HTMLSelectElement).value)">
+                  <option value="">Semua PIC</option>
+                  <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">Kalau user punya PIC, filter PIC di Rekap Saldo otomatis ke-preset ke PIC-nya waktu dia login (tetap bisa diganti ke "Semua PIC").</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="panel">
+        <div class="panel-head"><h3>🔒 Kunci Periode</h3></div>
+        <div class="toolbar">
+          <span class="gm-label">Kunci sampai bulan:</span>
+          <input v-model="lockInput" type="month" />
+          <button class="btn" @click="applyLock">Terapkan</button>
+          <button class="btn secondary" @click="lockInput = ''; applyLock()">Buka Kunci</button>
+          <span class="pill">{{ lockLabel }}</span>
+        </div>
+        <p class="hint">
+          Data yang tanggalnya di bulan terkunci ke bawah tidak bisa ditambah, diubah, atau dihapus di seluruh menu.
+          Aturan ini ditegakkan di server, jadi berlaku untuk semua pengguna.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>🏷️ Tag Transaksi</h3></div>
+        <div class="toolbar">
+          <input v-model="newTag" placeholder="Nama tag (misal: PPH 23)" @keyup.enter="addTag" />
+          <button class="btn" @click="addTag">+ Tambah Tag</button>
+        </div>
+        <div v-if="!tags.length" class="empty-state">Belum ada tag.</div>
+        <div v-else class="chip-row">
+          <span v-for="t in tags" :key="t.id" class="chip">{{ t.nama }}<span class="chip-del" @click="deleteTag(t.id)">✕</span></span>
+        </div>
+        <p class="hint">Tag "PPH 23", "PP 23", "PPH 4", dan "21 BP" memicu perhitungan otomatis kolom pajak di List Pajak.</p>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="panel">
+        <div class="panel-head"><h3>🏢 Grup</h3></div>
+        <div class="toolbar">
+          <input v-model="newGroupNama" placeholder="Nama grup (misal: GIM)" @keyup.enter="addGroup" />
+          <button class="btn" @click="addGroup">+ Tambah Grup</button>
+        </div>
+        <div v-if="!groups.length" class="empty-state">Belum ada grup.</div>
+        <div v-else class="chip-row">
+          <span v-for="(g, i) in groups" :key="g.id" class="chip" :style="{ background: g.warna || undefined, color: '#1e2433' }">
+            <span class="chip-move-col">
+              <span class="chip-move" :class="{ disabled: i === 0 }" @click="moveGroup(i, -1)">▲</span>
+              <span class="chip-move" :class="{ disabled: i === groups.length - 1 }" @click="moveGroup(i, 1)">▼</span>
+            </span>
+            <input type="text" class="chip-edit" :value="g.nama" size="1" @change="renameGroup(g, ($event.target as HTMLInputElement).value)" />
+            <select class="chip-pic" :value="g.picId" :title="'PIC penanggung jawab grup ini'" @change="setGroupPic(g, ($event.target as HTMLSelectElement).value)">
+              <option value="">Tanpa PIC</option>
+              <option v-for="p in picList" :key="p.id" :value="p.id">{{ p.nama }}</option>
+            </select>
+            <span class="chip-del" @click="deleteGroup(g.id)">✕</span>
+          </span>
+        </div>
+        <p class="hint">PIC di tiap grup dipakai buat preset "Filter Grup" otomatis ke grup dia sendiri waktu user itu login, di semua menu.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>📚 Master COA</h3></div>
+        <div class="toolbar">
+          <input v-model="newCoa.noCoa" placeholder="No. COA" style="width:140px;" />
+          <input v-model="newCoa.namaCoa" placeholder="Nama COA" style="width:220px;" @keyup.enter="addCoa" />
+          <button class="btn" @click="addCoa">+ Tambah COA</button>
+        </div>
+        <div v-if="!coas.length" class="empty-state">Belum ada COA. Modul Aktiva-Pasiva butuh minimal satu COA.</div>
+        <div v-else class="chip-row">
+          <span v-for="c in coas" :key="c.id" class="chip">{{ c.noCoa }} — {{ c.namaCoa }}<span class="chip-del" @click="deleteCoa(c.id)">✕</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="panel">
+        <div class="panel-head"><h3>🙋 PIC</h3></div>
+        <div class="toolbar">
+          <input v-model="newPicNama" placeholder="Nama PIC (misal: AND)" @keyup.enter="addPic" />
+          <button class="btn" @click="addPic">+ Tambah PIC</button>
+        </div>
+        <div v-if="!picList.length" class="empty-state">Belum ada PIC.</div>
+        <div v-else class="chip-row">
+          <span v-for="(p, i) in picList" :key="p.id" class="chip">
+            <span class="chip-move-col">
+              <span class="chip-move" :class="{ disabled: i === 0 }" @click="movePic(i, -1)">▲</span>
+              <span class="chip-move" :class="{ disabled: i === picList.length - 1 }" @click="movePic(i, 1)">▼</span>
+            </span>
+            <input type="text" class="chip-edit" :value="p.nama" size="1" @change="renamePic(p, ($event.target as HTMLInputElement).value)" />
+            <span class="chip-del" @click="deletePic(p.id)">✕</span>
+          </span>
+        </div>
+        <p class="hint">Dipakai buat kolom &amp; filter PIC di Rekap Saldo. Link ke user login diatur di bawah.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>🏪 Toko Marketplace</h3></div>
+        <div class="toolbar">
+          <select v-model="newStore.groupId">
+            <option value="">Tanpa Grup</option>
+            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.nama }}</option>
+          </select>
+          <input v-model="newStore.platform" placeholder="Platform (Shopee, Tokopedia…)" style="width:180px;" />
+          <input v-model="newStore.nama" placeholder="Nama toko" style="width:180px;" />
+          <input v-model="newStore.saldoAwal" placeholder="Saldo awal" style="width:130px;text-align:right;" @keyup.enter="addStore" />
+          <button class="btn" @click="addStore">+ Tambah Toko</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>Grup</th><th>Platform</th><th>Nama Toko</th><th class="num">Saldo Awal</th></tr></thead>
+            <tbody>
+              <tr v-if="!stores.length"><td colspan="5" class="empty-state">Belum ada toko.</td></tr>
+              <tr v-for="st in stores" :key="st.id">
+                <td><span class="row-del" @click="deleteStore(st)">✕</span></td>
+                <td>{{ groupLabel(st.groupId) }}</td>
+                <td>{{ st.platform }}</td>
+                <td><input class="cell-input" :value="st.nama" @change="patchStore(st, { nama: ($event.target as HTMLInputElement).value })" /></td>
+                <td class="num">
+                  <input
+                    class="cell-input" style="text-align:right;"
+                    :value="st.saldoAwal" @change="patchStore(st, { saldoAwal: parseNum(($event.target as HTMLInputElement).value) })"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="hint">Saldo awal dipakai sebagai baseline perhitungan saldo berjalan toko di Rincian MP.</p>
+      </div>
     </div>
 
     <div class="panel">

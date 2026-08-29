@@ -13,17 +13,22 @@ export default defineEventHandler(async (event) => {
   if (!acc) throw createError({ statusCode: 404, statusMessage: 'Rekening gak ketemu.' })
 
   const id = genId('bt')
+  const debet = Number(body?.debet) || 0
+  const kredit = Number(body?.kredit) || 0
+  const side = noBankSide(debet, kredit)
+  const autoNoBank = side ? await generateNoBank(accountId, side, tanggal) : null
+
   const row = {
     id,
     accountId,
     tanggal,
     transaksi: String(body?.transaksi || ''),
     cabang: String(body?.cabang || ''),
-    debet: Number(body?.debet) || 0,
-    kredit: Number(body?.kredit) || 0,
+    debet,
+    kredit,
     saldo: 0,
     bankType: acc.bankType,
-    noBankManual: '',
+    noBankManual: autoNoBank || '',
     ketTransaksiManual: '',
     tag: '',
     noteManual: '',
@@ -31,5 +36,6 @@ export default defineEventHandler(async (event) => {
     manual: true
   }
   await db.insert(bankTxns).values(row)
-  return row
+  const saldo = await recomputeAccountSaldo(accountId)
+  return { ...row, saldo: saldo ?? row.saldo }
 })
