@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { hitungBisaDipakai, parseNum, formatDateShort, parseDateShort, autoGrow } from '~/utils/format'
+import { hitungBisaDipakai, parseNum, formatDateShort, parseDateShort, autoGrow, lightenColor, darkenColor } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -100,11 +100,11 @@ const noGroupBayar = computed(() => bayarForGroup(null))
 function bayarSubtotal(rows: Bayar[]) {
   return rows.reduce((s, r) => s + (r.nominal || 0), 0)
 }
-/** Warna baris Bayar: warna manual (klik kanan) menang kalau ada, else warna Group-nya. */
+/** Warna baris Bayar: warna manual (klik kanan) menang kalau ada, else tint terang dari warna Group-nya. */
 function bayarRowStyle(b: Bayar, groupWarna?: string | null) {
   const manual = bayarColors.colorOf(b.id)
   if (manual) return `background:${manual}`
-  if (groupWarna) return `background:${groupWarna}`
+  if (groupWarna) return `background:${lightenColor(groupWarna)}`
   return ''
 }
 
@@ -148,13 +148,14 @@ async function patchBalance(b: Balance, field: string, value: any) {
     await loadAll()
   }
 }
-const newRow = reactive({ pic: '', rek: '' })
+const newRow = reactive({ pic: '', rek: '', grup: '' })
 async function addBalance() {
   if (!newRow.rek) { alert('Isi nama rekening dulu.'); return }
   try {
-    await api('/api/rekap/balances', { method: 'POST', body: { pic: newRow.pic, rek: newRow.rek, saldo: 0, bisaDipakai: 0, ket: '', grup: null } })
+    await api('/api/rekap/balances', { method: 'POST', body: { pic: newRow.pic, rek: newRow.rek, saldo: 0, bisaDipakai: 0, ket: '', grup: newRow.grup || null } })
     newRow.pic = ''
     newRow.rek = ''
+    newRow.grup = ''
     await loadAll()
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal nambah rekening.')
@@ -191,8 +192,8 @@ async function deleteBalance(id: string) {
     <div class="rekap-col">
     <div class="panel">
       <div class="panel-head">
-        <h3>💳 Saldo Rekening Bank</h3>
-        <button class="btn danger" @click="resetSaldo">🔄 Nol-in Semua Saldo</button>
+        <h3><span class="card-icon card-icon-bank">💳</span> Saldo RK</h3>
+        <button class="btn danger" @click="resetSaldo">🔄 Reset Saldo</button>
       </div>
 
       <div class="toolbar no-export" style="margin-bottom:10px;">
@@ -207,37 +208,31 @@ async function deleteBalance(id: string) {
         <div class="table-wrap">
           <table class="dense bank-dense" :data-sheet="g.nama">
             <colgroup>
-              <col style="width:10%"><col style="width:21%"><col style="width:17%"><col style="width:17%"><col style="width:16%"><col style="width:8%"><col style="width:11%">
+              <col style="width:10%"><col style="width:18%"><col style="width:19%"><col style="width:19%"><col style="width:22%"><col style="width:12%">
             </colgroup>
-            <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
+            <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th></th></tr></thead>
             <tbody>
-              <tr v-for="b in balancesForGroup(g.id)" :key="b.id" :style="g.warna ? `background:${g.warna}` : ''">
+              <tr v-for="b in balancesForGroup(g.id)" :key="b.id" :style="{ background: lightenColor(g.warna) }">
                 <td>
                   <select :value="b.pic" @change="patchBalance(b, 'pic', ($event.target as HTMLSelectElement).value || null)">
                     <option value="">-</option>
                     <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
                   </select>
                 </td>
-                <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td><input type="text" :value="b.rek" class="cell-edit" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
+                <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
                 <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
-                <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
-                <td>
-                  <select :value="b.grup" style="width:90px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
-                    <option value="">Tanpa Grup</option>
-                    <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
-                  </select>
-                </td>
+                <td><input type="text" :value="b.ket" class="cell-edit" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td class="row-actions">
                   <span class="row-lock" :class="{ 'is-locked': b.locked }" :title="b.locked ? 'Terkunci — klik buat buka' : 'Terbuka — klik buat kunci'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
                   <span class="row-del" @click="deleteBalance(b.id)">✕</span>
                 </td>
               </tr>
-              <tr class="subtotal-row" :style="g.warna ? `background:${g.warna}` : 'background:#F1F1F1'">
+              <tr class="subtotal-row" :style="{ background: darkenColor(g.warna) || '#F1F1F1', color: g.warna ? '#fff' : 'inherit' }">
                 <td colspan="2">TOTAL {{ g.nama }}</td>
                 <td class="num">{{ subtotal(balancesForGroup(g.id)).saldo.toLocaleString('id-ID') }}</td>
                 <td class="num">{{ subtotal(balancesForGroup(g.id)).bisaDipakai.toLocaleString('id-ID') }}</td>
-                <td colspan="3"></td>
+                <td colspan="2"></td>
               </tr>
             </tbody>
           </table>
@@ -248,9 +243,9 @@ async function deleteBalance(id: string) {
         <div class="table-wrap">
           <table class="dense bank-dense" data-sheet="Tanpa Grup">
             <colgroup>
-              <col style="width:10%"><col style="width:21%"><col style="width:17%"><col style="width:17%"><col style="width:16%"><col style="width:8%"><col style="width:11%">
+              <col style="width:10%"><col style="width:18%"><col style="width:19%"><col style="width:19%"><col style="width:22%"><col style="width:12%">
             </colgroup>
-            <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Grup</th><th></th></tr></thead>
+            <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in noGroupBalances" :key="b.id">
                 <td>
@@ -259,16 +254,10 @@ async function deleteBalance(id: string) {
                     <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
                   </select>
                 </td>
-                <td><input type="text" :value="b.rek" class="cell-edit" style="width:150px;" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
-                <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="width:110px;text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
+                <td><input type="text" :value="b.rek" class="cell-edit" @change="patchBalance(b, 'rek', ($event.target as HTMLInputElement).value)" /></td>
+                <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
                 <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
-                <td><input type="text" :value="b.ket" class="cell-edit" style="width:120px;" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
-                <td>
-                  <select :value="b.grup" style="width:90px;" @change="patchBalance(b, 'grup', ($event.target as HTMLSelectElement).value || null)">
-                    <option value="">Tanpa Grup</option>
-                    <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
-                  </select>
-                </td>
+                <td><input type="text" :value="b.ket" class="cell-edit" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
                 <td class="row-actions">
                   <span class="row-lock" :class="{ 'is-locked': b.locked }" :title="b.locked ? 'Terkunci — klik buat buka' : 'Terbuka — klik buat kunci'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
                   <span class="row-del" @click="deleteBalance(b.id)">✕</span>
@@ -278,7 +267,7 @@ async function deleteBalance(id: string) {
                 <td colspan="2">TOTAL Tanpa Grup</td>
                 <td class="num">{{ subtotal(noGroupBalances).saldo.toLocaleString('id-ID') }}</td>
                 <td class="num">{{ subtotal(noGroupBalances).bisaDipakai.toLocaleString('id-ID') }}</td>
-                <td colspan="3"></td>
+                <td colspan="2"></td>
               </tr>
             </tbody>
           </table>
@@ -305,12 +294,15 @@ async function deleteBalance(id: string) {
       </div>
 
       <div class="toolbar" style="margin-top:10px;">
-        <span class="gm-label">+ Tambah baris:</span>
         <select v-model="newRow.pic" style="width:120px;">
           <option value="">Tanpa PIC</option>
           <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
         </select>
         <input type="text" v-model="newRow.rek" placeholder="Nama Rekening" style="width:180px;" />
+        <select v-model="newRow.grup" style="width:120px;">
+          <option value="">Tanpa Grup</option>
+          <option v-for="gr in groups" :key="gr.id" :value="gr.id">{{ gr.nama }}</option>
+        </select>
         <button class="btn" @click="addBalance">+ Tambah</button>
       </div>
     </div>
@@ -319,15 +311,15 @@ async function deleteBalance(id: string) {
     <div class="rekap-col">
     <div class="panel">
       <div class="panel-head">
-        <h3>🏦 Deposito</h3>
+        <h3><span class="card-icon card-icon-deposito">🏦</span> Deposito</h3>
         <button class="btn" @click="addRow('deposito')">+ Tambah</button>
       </div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Deposito">
           <colgroup>
-            <col style="width:20%"><col style="width:16%"><col style="width:15%"><col style="width:9%"><col style="width:15%"><col style="width:19%"><col style="width:6%">
+            <col style="width:20%"><col style="width:16%"><col style="width:9%"><col style="width:15%"><col style="width:15%"><col style="width:19%"><col style="width:6%">
           </colgroup>
-          <thead><tr><th>Nama</th><th class="num">Nominal</th><th>Tgl Masuk</th><th>Rate</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
+          <thead><tr><th>Nama</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Masuk</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
             <tr v-if="!deposito.length"><td colspan="7" class="empty-state">Belum ada data deposito.</td></tr>
             <tr
@@ -344,8 +336,8 @@ async function deleteBalance(id: string) {
                 ></textarea>
               </td>
               <td class="num"><input type="text" :value="d.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('deposito', d, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
-              <td><input type="date" :value="d.tglMasuk" style="width:130px;" @change="patchRow('deposito', d, 'tglMasuk', ($event.target as HTMLInputElement).value || null)" /></td>
               <td><input type="text" :value="d.rate" class="cell-edit" style="width:70px;" @change="patchRow('deposito', d, 'rate', ($event.target as HTMLInputElement).value)" /></td>
+              <td><input type="date" :value="d.tglMasuk" style="width:130px;" @change="patchRow('deposito', d, 'tglMasuk', ($event.target as HTMLInputElement).value || null)" /></td>
               <td><input type="date" :value="d.jatuhTempo" style="width:130px;" @change="patchRow('deposito', d, 'jatuhTempo', ($event.target as HTMLInputElement).value || null)" /></td>
               <td>
                 <textarea
@@ -368,13 +360,13 @@ async function deleteBalance(id: string) {
 
     <div class="panel">
       <div class="panel-head">
-        <h3>💸 Hutang</h3>
+        <h3><span class="card-icon card-icon-hutang">💸</span> Hutang</h3>
         <button class="btn" @click="addRow('hutang')">+ Tambah</button>
       </div>
       <div class="table-wrap">
         <table class="dense" data-sheet="Hutang">
           <colgroup>
-            <col style="width:13%"><col style="width:13%"><col style="width:17%"><col style="width:5%"><col style="width:13%"><col style="width:14%"><col style="width:19%"><col style="width:6%">
+            <col style="width:7%"><col style="width:19%"><col style="width:17%"><col style="width:5%"><col style="width:13%"><col style="width:14%"><col style="width:19%"><col style="width:6%">
           </colgroup>
           <thead><tr><th>Peminjam</th><th>Kreditur</th><th class="num">Nominal</th><th>Rate</th><th>Tgl Pinjam</th><th>Jatuh Tempo</th><th>Keterangan</th><th></th></tr></thead>
           <tbody>
@@ -429,13 +421,13 @@ async function deleteBalance(id: string) {
 
     <div class="panel">
       <div class="panel-head">
-        <h3>🧾 Bayar</h3>
+        <h3><span class="card-icon card-icon-bayar">🧾</span> Bayar</h3>
         <button class="btn" @click="addRow('bayar')">+ Tambah</button>
       </div>
 
       <div v-for="g in groupsWithBayar" :key="g.id" style="margin-bottom:10px;">
         <div class="table-wrap">
-          <table class="dense" :data-sheet="`Bayar ${g.nama}`">
+          <table class="dense bayar-dense" :data-sheet="`Bayar ${g.nama}`">
             <colgroup>
               <col style="width:9%"><col style="width:20%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:16%"><col style="width:6%">
             </colgroup>
@@ -486,7 +478,7 @@ async function deleteBalance(id: string) {
                 </td>
                 <td><span class="row-del" @click="deleteRow('bayar', b.id)">✕</span></td>
               </tr>
-              <tr class="subtotal-row" :style="g.warna ? `background:${g.warna}` : 'background:#F1F1F1'">
+              <tr class="subtotal-row" :style="{ background: darkenColor(g.warna) || '#F1F1F1', color: g.warna ? '#fff' : 'inherit' }">
                 <td>TOTAL {{ g.nama }}</td>
                 <td class="num">{{ bayarSubtotal(bayarForGroup(g.id)).toLocaleString('id-ID') }}</td>
                 <td colspan="7"></td>
@@ -498,7 +490,7 @@ async function deleteBalance(id: string) {
 
       <div v-if="noGroupBayar.length" style="margin-bottom:10px;">
         <div class="table-wrap">
-          <table class="dense" data-sheet="Bayar Tanpa Grup">
+          <table class="dense bayar-dense" data-sheet="Bayar Tanpa Grup">
             <colgroup>
               <col style="width:9%"><col style="width:20%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:16%"><col style="width:6%">
             </colgroup>
@@ -598,6 +590,7 @@ async function deleteBalance(id: string) {
 .rekap-grid table.dense input,
 .rekap-grid table.dense select {
   width: 100% !important;
+  min-width: 0;
   box-sizing: border-box;
   padding: 1px 4px;
   height: 22px;
@@ -637,5 +630,57 @@ async function deleteBalance(id: string) {
 .rekap-grid table.dense.bank-dense select {
   height: 18px;
   padding: 0 3px;
+}
+
+/* Badge bulat berwarna di belakang icon judul card. */
+.card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  margin-right: 6px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.card-icon-bank { background: var(--accent-light); }
+.card-icon-deposito { background: var(--green-bg); }
+.card-icon-hutang { background: var(--red-bg); }
+.card-icon-bayar { background: #F3E8FD; }
+
+/* Input/select di card Saldo Rekening Bank dibikin transparan biar warna tone baris
+   (di-set inline lewat lightenColor(g.warna) di <tr>) keliatan tembus — bukan ketutup
+   background putih bawaan input/select global. Saldo yang lagi 🔒 tetap merah solid. */
+.rekap-grid table.dense.bank-dense tbody input,
+.rekap-grid table.dense.bank-dense tbody select {
+  background: transparent !important;
+}
+.rekap-grid table.dense.bank-dense tbody .saldo-locked-input:disabled {
+  background: var(--red-bg) !important;
+  color: var(--red) !important;
+}
+
+/* Sama kayak Saldo Rekening Bank di atas — card Bayar juga transparan biar tone
+   baris (warna Group / warna manual) keliatan tembus, gak ketutup putih bawaan. */
+.rekap-grid table.dense.bayar-dense tbody input,
+.rekap-grid table.dense.bayar-dense tbody select,
+.rekap-grid table.dense.bayar-dense tbody textarea {
+  background: transparent !important;
+}
+
+/* Teks di semua tabel Rekap Saldo di-tengahin vertikal, biar baris yang tingginya beda
+   (mis. gara-gara textarea wrap ke 2+ baris) tetap rapi sejajar tengah. */
+.rekap-grid table.dense tbody td {
+  vertical-align: middle;
+}
+/* Kecuali card Saldo RK — tabelnya balik ke top align. */
+.rekap-grid table.dense.bank-dense tbody td {
+  vertical-align: top;
+}
+
+/* Proporsi 2 kolom Rekap Saldo: kiri (Saldo RK) 45%, kanan (Deposito/Hutang/Bayar) 55%. */
+.rekap-grid {
+  grid-template-columns: 45% 55%;
 }
 </style>

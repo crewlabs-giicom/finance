@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { daysInMonth, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { daysInMonth, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
@@ -151,7 +151,7 @@ async function onExport() {
 
       <div class="table-wrap">
         <table class="dense" :data-sheet="sec.nama">
-          <thead>
+          <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
             <tr>
               <th rowspan="2">Tanggal</th>
               <th v-for="st in sec.stores" :key="st.id" colspan="3" style="text-align:center;">
@@ -236,5 +236,11 @@ async function onExport() {
 .panel.no-export .lock-banner {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+/* Header tabel ikut tone warna Grup (custom property di <thead>, berlaku ke kedua
+   baris header, sticky per-<th> tetap normal). */
+.table-wrap table.dense thead th {
+  background: var(--group-thead-bg, var(--accent-light));
 }
 </style>

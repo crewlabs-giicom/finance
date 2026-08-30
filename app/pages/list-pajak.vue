@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, autoGrow, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList } from '~/utils/format'
+import { MONTH_NAMES, autoGrow, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList, lightenColor } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -343,7 +343,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
 
       <div class="table-wrap">
         <table class="dense" :data-sheet="sec.nama">
-          <thead>
+          <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
             <tr>
               <th class="no-export"><input type="checkbox" :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(sec.rows.map(r => r.id))" /></th>
               <th>Tanggal</th><th>No Bank</th><th>Store</th><th>Description</th><th>Tags</th>
@@ -469,5 +469,11 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
 .panel.no-export .lock-banner {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+/* Header tabel ikut tone warna Grup (di-set lewat custom property di <thead>, biar
+   posisi sticky per-<th> tetap kepake normal). */
+.table-wrap table.dense thead th {
+  background: var(--group-thead-bg, var(--accent-light));
 }
 </style>

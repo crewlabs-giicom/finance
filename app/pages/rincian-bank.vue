@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { autoGrow, parseTagList } from '~/utils/format'
+import { autoGrow, parseTagList, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
+const { groups, load: loadGroups } = useGroups()
 const { lockYm, label: lockLabel, refresh: refreshLock } = usePeriodLock()
 type Account = { id: string; groupId: string | null; picId: string | null; bankType: string; namaRek: string; noRek: string; saldoAwal: number | null }
 type Txn = {
@@ -38,7 +39,7 @@ async function loadAll() {
     api('/api/row-colors')
   ])
 }
-await Promise.all([loadAll(), loadPics(), refreshLock()])
+await Promise.all([loadAll(), loadPics(), loadGroups(), refreshLock()])
 try {
   const me = await api<{ picId: string | null }>('/api/auth/me')
   if (me.picId) filterPic.value = me.picId
@@ -57,6 +58,9 @@ watch(visibleAccounts, (list) => {
 })
 
 const selectedAccount = computed(() => accounts.value.find(a => a.id === filterAccount.value) || null)
+/** Warna Grup rekening yang lagi dipilih — null kalau rekeningnya gak masuk grup manapun,
+ *  biar header tabel balik ke warna default (bukan dipaksa abu-abu). */
+const selectedAccountWarna = computed(() => groups.value.find(g => g.id === selectedAccount.value?.groupId)?.warna || null)
 
 function txnsForAccount(accId: string) {
   return txns.value
@@ -340,7 +344,7 @@ async function onExport() {
 
       <div class="table-wrap">
         <table :data-sheet="selectedAccount.namaRek">
-          <thead>
+          <thead :style="selectedAccountWarna ? { '--group-thead-bg': lightenColor(selectedAccountWarna) } : {}">
             <tr>
               <th class="no-export">
                 <input
@@ -484,5 +488,11 @@ async function onExport() {
 .panel.no-export .lock-banner {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+/* Header tabel ikut tone warna Grup rekening yang lagi dipilih (custom property di
+   <thead>, sticky per-<th> tetap normal). Tabel di sini gak pakai class .dense. */
+.table-wrap table thead th {
+  background: var(--group-thead-bg, var(--accent-light));
 }
 </style>

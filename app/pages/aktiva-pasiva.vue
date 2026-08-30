@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { autoGrow, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -367,7 +367,7 @@ async function onExport() {
         </div>
         <div class="table-wrap">
           <table class="dense" :data-sheet="`${sec.nama} ${cg.label}`">
-            <thead>
+            <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
               <tr>
                 <th class="no-export"><input type="checkbox" :checked="cg.rows.length > 0 && cg.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(cg.rows.map(r => r.id))" /></th>
                 <th class="no-export"></th>
@@ -473,5 +473,10 @@ async function onExport() {
 .panel.no-export .lock-banner {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+/* Header tabel ikut tone warna Grup (custom property di <thead>, sticky per-<th> tetap normal). */
+.table-wrap table.dense thead th {
+  background: var(--group-thead-bg, var(--accent-light));
 }
 </style>

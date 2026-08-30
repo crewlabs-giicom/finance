@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtRp, formatDateShort } from '~/utils/format'
+import { fmtRp, formatDateShort, lightenColor } from '~/utils/format'
 
 /**
  * Daftar Norminatif adalah tampilan turunan dari List Pajak — tidak punya tabel
@@ -182,7 +182,7 @@ async function onExport() {
 
       <div class="table-wrap">
         <table class="dense" :data-sheet="sec.nama">
-          <thead>
+          <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
             <tr>
               <th rowspan="2" class="no-export">
                 <input
@@ -264,5 +264,11 @@ async function onExport() {
 .panel.no-export .lock-banner {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+/* Header tabel ikut tone warna Grup (custom property di <thead>, berlaku ke kedua
+   baris header, sticky per-<th> tetap normal). */
+.table-wrap table.dense thead th {
+  background: var(--group-thead-bg, var(--accent-light));
 }
 </style>

@@ -84,6 +84,27 @@ export function sumBy<T>(arr: T[], key: keyof T): number {
   return arr.reduce((a, x) => a + (Number(x[key]) || 0), 0)
 }
 
+function hexToRgb(hex: string) {
+  const h = hex.replace('#', '')
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h
+  const n = parseInt(full, 16) || 0
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+}
+/** Tint terang dari warna Grup — dipakai buat background baris/header yang tadinya putih polos ikut tone Grup-nya. */
+export function lightenColor(hex: string | null | undefined, amount = 0.85) {
+  if (!hex) return ''
+  const { r, g, b } = hexToRgb(hex)
+  const mix = (c: number) => Math.round(c + (255 - c) * amount)
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`
+}
+/** Tint gelap dari warna Grup — dipakai buat background baris TOTAL, biar lebih menonjol dari baris data. */
+export function darkenColor(hex: string | null | undefined, amount = 0.35) {
+  if (!hex) return ''
+  const { r, g, b } = hexToRgb(hex)
+  const mix = (c: number) => Math.round(c * (1 - amount))
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`
+}
+
 export const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'

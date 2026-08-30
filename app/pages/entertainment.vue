@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, fmtNum, fmtRp, parseNum } from '~/utils/format'
+import { autoGrow, fmtNum, fmtRp, parseNum, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
@@ -166,7 +166,7 @@ async function onExport() {
 
       <div class="table-wrap">
         <table class="dense" :data-sheet="sec.nama">
-          <thead>
+          <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
             <tr>
               <th class="no-export"><input type="checkbox" :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(sec.rows.map(r => r.id))" /></th>
               <th>Tanggal</th><th>Place</th><th>Alamat</th><th>Description</th><th>Jenis</th>
@@ -251,5 +251,10 @@ async function onExport() {
 .panel.no-export .lock-banner {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+/* Header tabel ikut tone warna Grup (custom property di <thead>, sticky per-<th> tetap normal). */
+.table-wrap table.dense thead th {
+  background: var(--group-thead-bg, var(--accent-light));
 }
 </style>
