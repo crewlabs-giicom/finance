@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, lte } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 /**
@@ -67,8 +67,26 @@ export function defineCrud(opts: CrudOptions) {
   }
 
   return {
-    list: defineEventHandler(async () => {
-      return await db.select().from(table)
+    /**
+     * Query param opsional: `from`/`to` (filter dateField, kalau tabelnya punya)
+     * dan nama field 'ref' apa pun di `fields` (mis. `groupId`, `coaId`) buat
+     * exact-match. Gak ada satupun query param dikirim -> behavior sama persis
+     * kayak dulu (balikin seluruh tabel), jadi non-breaking buat pemanggil lama.
+     */
+    list: defineEventHandler(async (event) => {
+      const q = getQuery(event)
+      const conditions = []
+      if (dateField) {
+        if (q.from) conditions.push(gte(cols[dateField], String(q.from)))
+        if (q.to) conditions.push(lte(cols[dateField], String(q.to)))
+      }
+      for (const [name, kind] of Object.entries(fields)) {
+        if (kind === 'ref' && q[name] !== undefined && q[name] !== '') {
+          conditions.push(eq(cols[name], String(q[name])))
+        }
+      }
+      if (!conditions.length) return await db.select().from(table)
+      return await db.select().from(table).where(and(...conditions))
     }),
 
     create: defineEventHandler(async (event) => {

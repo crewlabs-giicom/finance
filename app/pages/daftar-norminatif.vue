@@ -32,17 +32,23 @@ const filterGroup = ref('')
 const filterJenis = ref<'all' | 'pph23' | 'pph21bp'>('all')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
+const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
+const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
+
+/** /api/ppn di-scope ke rentang tanggal — beda dari List Pajak yang butuh
+ *  seluruh histori buat ringkasan Masa Kredit lintas periode, halaman ini
+ *  cuma nampilin baris dalam rentang filter jadi aman di-scope. */
 async function loadAll() {
   ;[rows.value, npwps.value] = await Promise.all([
-    api<PpnRow[]>('/api/ppn'),
+    api<PpnRow[]>('/api/ppn', { query: { from: `${fromYm.value}-01`, to: `${toYm.value}-31`, groupId: filterGroup.value || undefined } }),
     api<Npwp[]>('/api/master/npwp')
   ])
 }
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
+await loadAll() // re-fetch scoped ke grup default user (baru kesetel di atas)
+watch([filterFromMonth, filterFromYear, filterToMonth, filterToYear, filterGroup], loadAll)
 
-const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
-const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
 function inPeriod(tanggal: string) {
   const ym = (tanggal || '').slice(0, 7)
   return ym >= fromYm.value && ym <= toYm.value

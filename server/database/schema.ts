@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
 
 // ---------- Auth ----------
 export const users = sqliteTable('users', {
@@ -44,7 +44,10 @@ export const bankAccounts = sqliteTable('bank_accounts', {
   // jadi "BKCA/2026/08/". Null/kosong = auto-generate dimatikan buat sisi itu.
   noBankFormatDebet: text('no_bank_format_debet'),
   noBankFormatKredit: text('no_bank_format_kredit')
-})
+}, (t) => ({
+  groupIdx: index('bank_accounts_group_idx').on(t.groupId),
+  picIdx: index('bank_accounts_pic_idx').on(t.picId)
+}))
 
 // ---------- Rekap Saldo: Saldo Rekening Bank (mirrors original app's `bank[]` array) ----------
 export const bankBalances = sqliteTable('bank_balances', {
@@ -84,7 +87,12 @@ export const bankTxns = sqliteTable('bank_txns', {
   // tanggal itu), baris hasil Duplicate disisipin di antara urutan sumber dan
   // baris berikutnya (fractional indexing) biar nongol PERSIS di bawahnya.
   urutan: real('urutan')
-})
+}, (t) => ({
+  // Kombinasi ini persis yang dipakai recomputeAccountSaldo() (WHERE account_id
+  // ORDER BY tanggal, urutan) dan filter per-rekening di Rincian Bank — tanpa index
+  // ini jadi full table scan begitu bank_txns numpuk ribuan/jutaan baris.
+  accountTanggalIdx: index('bank_txns_account_tanggal_idx').on(t.accountId, t.tanggal, t.urutan)
+}))
 
 // ---------- Rincian MP (marketplace toko per grup) ----------
 export const mpStores = sqliteTable('mp_stores', {
@@ -103,7 +111,8 @@ export const mpEntries = sqliteTable('mp_entries', {
   debet: real('debet').notNull().default(0),
   kredit: real('kredit').notNull().default(0)
 }, (t) => ({
-  storeDateIdx: uniqueIndex('mp_entries_store_date_idx').on(t.storeId, t.tanggal)
+  storeDateIdx: uniqueIndex('mp_entries_store_date_idx').on(t.storeId, t.tanggal),
+  tanggalIdx: index('mp_entries_tanggal_idx').on(t.tanggal)
 }))
 
 // ---------- List Pajak ----------
@@ -138,7 +147,11 @@ export const ppnRows = sqliteTable('ppn_rows', {
   lampiranFakturPajak: text('lampiran_faktur_pajak').default(''),
   masaKredit: text('masa_kredit').default(''), // 'YYYY-MM'
   bentukJenisBiaya: text('bentuk_jenis_biaya').default('')
-})
+}, (t) => ({
+  groupIdx: index('ppn_rows_group_idx').on(t.groupId),
+  sourceTxnIdx: index('ppn_rows_source_txn_idx').on(t.sourceTxnId),
+  tanggalIdx: index('ppn_rows_tanggal_idx').on(t.tanggal)
+}))
 
 // ---------- Entertainment ----------
 export const entRows = sqliteTable('ent_rows', {
@@ -156,7 +169,11 @@ export const entRows = sqliteTable('ent_rows', {
   company: text('company').default(''),
   jenisUsaha: text('jenis_usaha').default(''),
   note: text('note')
-})
+}, (t) => ({
+  groupIdx: index('ent_rows_group_idx').on(t.groupId),
+  sourceTxnIdx: index('ent_rows_source_txn_idx').on(t.sourceTxnId),
+  tanggalIdx: index('ent_rows_tanggal_idx').on(t.tanggal)
+}))
 
 // ---------- Aktiva - Pasiva ----------
 export const coaMaster = sqliteTable('coa_master', {
@@ -176,7 +193,11 @@ export const avpRows = sqliteTable('avp_rows', {
   tags: text('tags').default(''),
   debet: real('debet').notNull().default(0),
   kredit: real('kredit').notNull().default(0)
-})
+}, (t) => ({
+  groupIdx: index('avp_rows_group_idx').on(t.groupId),
+  coaIdx: index('avp_rows_coa_idx').on(t.coaId),
+  tanggalIdx: index('avp_rows_tanggal_idx').on(t.tanggal)
+}))
 
 export const avpLawan = sqliteTable('avp_lawan', {
   id: text('id').primaryKey(),

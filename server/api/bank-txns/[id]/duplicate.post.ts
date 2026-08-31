@@ -12,6 +12,6 @@ export default defineEventHandler(async (event) => {
   const newUrutan = await urutanAfter(rest.accountId, rest.tanggal, rest.urutan ?? 0)
   await db.insert(bankTxns).values({ ...rest, id: newId, urutan: newUrutan })
   await syncTagDerivedRows(newId)
-  const saldo = await recomputeAccountSaldo(rest.accountId)
+  const saldo = await recomputeAccountSaldo(rest.accountId, undefined, rest.tanggal)
   return { ...rest, id: newId, saldo: saldo ?? rest.saldo }
 })

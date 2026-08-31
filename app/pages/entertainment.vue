@@ -25,26 +25,26 @@ const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
 const addForm = reactive({ groupId: '', tanggal: '' })
 
+const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
+const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
+
+/** /api/ent di-scope ke rentang tanggal yang lagi ditampilin (server filter,
+ *  bukan download semua terus filter di browser) — halaman ini gak punya
+ *  fitur yang butuh baris di luar rentang itu (beda dari List Pajak/AP). */
 async function loadAll() {
-  rows.value = await api<EntRow[]>('/api/ent')
+  rows.value = await api<EntRow[]>('/api/ent', { query: { from: `${fromYm.value}-01`, to: `${toYm.value}-31` } })
   await rowColors.load()
 }
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
-
-const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
-const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
-function inPeriod(tanggal: string) {
-  const ym = (tanggal || '').slice(0, 7)
-  return ym >= fromYm.value && ym <= toYm.value
-}
+watch([filterFromMonth, filterFromYear, filterToMonth, filterToYear], loadAll)
 
 const visibleSections = computed(() =>
   sections.value
     .filter(s => !filterGroup.value || (s.id || '') === filterGroup.value)
     .map(s => ({
       ...s,
-      rows: rows.value.filter(r => (r.groupId || '') === (s.id || '') && inPeriod(r.tanggal))
+      rows: rows.value.filter(r => (r.groupId || '') === (s.id || ''))
     }))
     .filter(s => s.rows.length)
 )

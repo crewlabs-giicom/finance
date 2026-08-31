@@ -87,9 +87,21 @@ function inPeriod(tanggal: string) {
   return ym >= fromYm.value && ym <= toYm.value
 }
 
+/** rowId -> array partnerId, dikelompokkan sekali (bukan filter ulang tiap baris dirender). */
+const lawanByRow = computed(() => {
+  const map = new Map<string, string[]>()
+  for (const l of lawan.value) {
+    if (!map.has(l.rowId)) map.set(l.rowId, [])
+    map.get(l.rowId)!.push(l.partnerId)
+  }
+  return map
+})
+const rowById = computed(() => new Map(rows.value.map(r => [r.id, r])))
 function partnersOf(rowId: string) {
-  const ids = lawan.value.filter(l => l.rowId === rowId).map(l => l.partnerId)
-  return rows.value.filter(r => ids.includes(r.id))
+  const ids = lawanByRow.value.get(rowId)
+  if (!ids) return []
+  const byId = rowById.value
+  return ids.map(id => byId.get(id)).filter((r): r is AvpRow => !!r)
 }
 /** Nilai baris = sisi yang terisi; dipakai untuk membandingkan dengan total lawannya. */
 function rowAmount(r: AvpRow) {
@@ -98,6 +110,9 @@ function rowAmount(r: AvpRow) {
 function matchedTotal(r: AvpRow) {
   return partnersOf(r.id).reduce((a, p) => a + rowAmount(p), 0)
 }
+/** Baris di-split per sisi sekali, biar candidatesFor gak nyisir baris sisi yang sama. */
+const debetRows = computed(() => rows.value.filter(r => r.debet > 0))
+const kreditRows = computed(() => rows.value.filter(r => r.kredit > 0))
 
 const visibleSections = computed(() =>
   sections.value
@@ -139,8 +154,9 @@ function candidatesFor(r: AvpRow) {
   const already = new Set(partnersOf(r.id).map(p => p.id))
   const wantKredit = r.debet > 0
   const remaining = rowAmount(r) - matchedTotal(r)
-  return rows.value.filter(x =>
-    x.id !== r.id && !already.has(x.id) && (wantKredit ? x.kredit > 0 : x.debet > 0) &&
+  const pool = wantKredit ? kreditRows.value : debetRows.value
+  return pool.filter(x =>
+    x.id !== r.id && !already.has(x.id) &&
     rowAmount(x) <= remaining + 0.5
   )
 }

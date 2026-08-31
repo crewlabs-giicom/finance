@@ -39,7 +39,10 @@ export default defineEventHandler(async (event) => {
   await db.update(bankTxns).set(patch).where(eq(bankTxns.id, id))
 
   const SALDO_TRIGGER_FIELDS = ['debet', 'kredit', 'tanggal']
-  if (SALDO_TRIGGER_FIELDS.some(f => f in patch)) await recomputeAccountSaldo(row.accountId)
+  if (SALDO_TRIGGER_FIELDS.some(f => f in patch)) {
+    const fromTanggal = patch.tanggal !== undefined && patch.tanggal < row.tanggal ? patch.tanggal : row.tanggal
+    await recomputeAccountSaldo(row.accountId, undefined, fromTanggal)
+  }
 
   const SYNC_TRIGGER_FIELDS = ['tag', 'tanggal', 'debet', 'kredit', 'transaksi', 'ketTransaksiManual', 'noBankManual']
   if (SYNC_TRIGGER_FIELDS.some(f => f in patch)) await syncTagDerivedRows(id)

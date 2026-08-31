@@ -38,6 +38,6 @@ export default defineEventHandler(async (event) => {
     urutan
   }
   await db.insert(bankTxns).values(row)
-  const saldo = await recomputeAccountSaldo(accountId)
+  const saldo = await recomputeAccountSaldo(accountId, undefined, tanggal)
   return { ...row, saldo: saldo ?? row.saldo }
 })

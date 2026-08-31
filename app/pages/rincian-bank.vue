@@ -31,13 +31,22 @@ const filterPic = ref('') // '' = semua PIC
 const filterBank = ref('') // '' = semua bank
 const filterAccount = ref('') // '' = belum pilih rekening — datanya sengaja gak ditampilin dulu
 
+/** Endpoint /api/bank-txns di-scope ke satu rekening + rentang tanggal (lihat
+ *  komentar di server/api/bank-txns/index.get.ts) — jangan di-fetch kalau
+ *  belum ada rekening yang dipilih, biar gak nge-download satu rekening pun
+ *  sia-sia sebelum user milih. */
+async function loadTxns() {
+  txns.value = filterAccount.value
+    ? await api('/api/bank-txns', { query: { accountId: filterAccount.value, from: filterDateFrom.value, to: filterDateTo.value } })
+    : []
+}
 async function loadAll() {
-  ;[accounts.value, txns.value, tags.value, rowColors.value] = await Promise.all([
+  ;[accounts.value, tags.value, rowColors.value] = await Promise.all([
     api('/api/master/accounts'),
-    api('/api/bank-txns'),
     api('/api/master/tags'),
     api('/api/row-colors')
   ])
+  await loadTxns()
 }
 await Promise.all([loadAll(), loadPics(), loadGroups(), refreshLock()])
 try {
@@ -71,7 +80,7 @@ function txnsForAccount(accId: string) {
 // -- pagination tabel transaksi --
 const PAGE_SIZE = 50
 const currentPage = ref(1)
-watch([filterAccount, filterDateFrom, filterDateTo], () => { currentPage.value = 1 })
+watch([filterAccount, filterDateFrom, filterDateTo], () => { currentPage.value = 1; loadTxns() })
 
 const allTxnsForSelected = computed(() => selectedAccount.value ? txnsForAccount(selectedAccount.value.id) : [])
 const totalPages = computed(() => Math.max(1, Math.ceil(allTxnsForSelected.value.length / PAGE_SIZE)))

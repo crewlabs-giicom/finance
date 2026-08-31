@@ -56,12 +56,26 @@ function entryOf(storeId: string, tanggal: string) {
  * tanggal 1 bulan yang difilter, jadi saldo tetap nyambung lintas bulan
  * walaupun tampilan cuma menampilkan satu bulan.
  */
+/** entries dikelompokkan per toko sekali, jadi cari mutasi sebelum bulan yang
+ *  difilter gak perlu nyisir seluruh histori tiap kali saldoGrid dihitung ulang. */
+const entriesByStore = computed(() => {
+  const map = new Map<string, Entry[]>()
+  for (const e of entries.value) {
+    if (!map.has(e.storeId)) map.set(e.storeId, [])
+    map.get(e.storeId)!.push(e)
+  }
+  return map
+})
+
 const saldoGrid = computed(() => {
   const result = new Map<string, number>()
   for (const st of stores.value) {
     let cum = st.saldoAwal || 0
-    for (const e of entries.value) {
-      if (e.storeId === st.id && e.tanggal < monthStart.value) cum += (e.debet || 0) - (e.kredit || 0)
+    const storeEntries = entriesByStore.value.get(st.id)
+    if (storeEntries) {
+      for (const e of storeEntries) {
+        if (e.tanggal < monthStart.value) cum += (e.debet || 0) - (e.kredit || 0)
+      }
     }
     for (const iso of dayList.value) {
       const e = entryOf(st.id, iso)

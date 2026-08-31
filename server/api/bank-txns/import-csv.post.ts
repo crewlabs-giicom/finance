@@ -1,3 +1,4 @@
+import { inArray } from 'drizzle-orm'
 import { bankAccounts, bankTxns } from '../../database/schema'
 import { csvParseLines, detectCsvFormat, deriveKetTransaksi, matchAccountByFilename, normalizeNoRek, parseBcaCsv, parseBniCsv, parseBriCsv, txnDupKey, txnDupKeyWithRef } from '../../utils/bankCsv'
 
@@ -21,22 +22,34 @@ export default defineEventHandler(async (event) => {
   }
 
   const accounts = await db.select().from(bankAccounts)
-  const existing = await db.select().from(bankTxns)
-  const seen = new Set(existing.map(t => txnDupKey(t as any)))
-  // Baris lama yang punya importRef (mis. hasil import BNI sebelumnya) juga ke-index
-  // pakai key yang nyelipin ref-nya, biar re-import file yang sama kedetect.
-  for (const t of existing) {
-    if (t.importRef) seen.add(txnDupKeyWithRef(t as any, t.importRef))
+
+  /**
+   * Dedup Set di-scope ke rekening yang KETUJUAN diimport ini aja, bukan baca
+   * seluruh bank_txns — begitu tabel numpuk jutaan baris, import CSV (yang
+   * cuma nyentuh 1-2 rekening) gak perlu ngangkut riwayat rekening lain.
+   */
+  async function buildSeen(accountIds: string[]): Promise<Set<string>> {
+    if (!accountIds.length) return new Set()
+    const existing = await db.select().from(bankTxns).where(inArray(bankTxns.accountId, accountIds))
+    const seen = new Set(existing.map(t => txnDupKey(t as any)))
+    // Baris lama yang punya importRef (mis. hasil import BNI sebelumnya) juga ke-index
+    // pakai key yang nyelipin ref-nya, biar re-import file yang sama kedetect.
+    for (const t of existing) {
+      if (t.importRef) seen.add(txnDupKeyWithRef(t as any, t.importRef))
+    }
+    return seen
   }
+
   const lockYm = await getPeriodLockYm()
   let urutanCounter = await nextUrutan()
 
   const toInsert: typeof bankTxns.$inferInsert[] = []
   const touchedAccounts = new Map<string, number | null>()
+  const touchedMinTanggal = new Map<string, string>()
   const noAccountNoRek = new Set<string>()
   let dup = 0, locked = 0, noAccount = 0
 
-  function push(acc: typeof accounts[number], t: { tanggal: string; transaksi: string; cabang: string; debet: number; kredit: number; importRef?: string }, saldoAwal: number | null) {
+  function push(seen: Set<string>, acc: typeof accounts[number], t: { tanggal: string; transaksi: string; cabang: string; debet: number; kredit: number; importRef?: string }, saldoAwal: number | null) {
     if (lockYm && t.tanggal.slice(0, 7) <= lockYm) { locked++; return }
     const key = t.importRef ? txnDupKeyWithRef({ accountId: acc.id, ...t }, t.importRef) : txnDupKey({ accountId: acc.id, ...t })
     if (seen.has(key)) { dup++; return }
@@ -50,6 +63,8 @@ export default defineEventHandler(async (event) => {
       urutan: urutanCounter++
     })
     if (!touchedAccounts.has(acc.id)) touchedAccounts.set(acc.id, saldoAwal)
+    const prevMin = touchedMinTanggal.get(acc.id)
+    if (!prevMin || t.tanggal < prevMin) touchedMinTanggal.set(acc.id, t.tanggal)
   }
 
   let ringkasanRekening = ''
@@ -66,18 +81,23 @@ export default defineEventHandler(async (event) => {
         statusMessage: `Nomor rekening ${parsed.noRek} belum terdaftar. Tambahkan dulu di Master Data → Rekening Bank, lalu upload ulang.`
       })
     }
-    for (const t of parsed.txns) push(acc, t, parsed.saldoAwal)
+    const seen = await buildSeen([acc.id])
+    for (const t of parsed.txns) push(seen, acc, t, parsed.saldoAwal)
     ringkasanRekening = `${acc.namaRek} (${acc.noRek})`
   } else if (format === 'bri') {
     const parsed = parseBriCsv(rows)
     if (!parsed.length) {
       throw createError({ statusCode: 400, statusMessage: 'Gak ada baris transaksi valid di file ini — pastikan file mutasi asli dari BRI.' })
     }
+    const briAccountIds = [...new Set(parsed
+      .map(t => accounts.find(a => normalizeNoRek(a.noRek) === normalizeNoRek(t.noRek))?.id)
+      .filter((id): id is string => !!id))]
+    const seen = await buildSeen(briAccountIds)
     const namaRek = new Set<string>()
     for (const t of parsed) {
       const acc = accounts.find(a => normalizeNoRek(a.noRek) === normalizeNoRek(t.noRek))
       if (!acc) { noAccount++; noAccountNoRek.add(t.noRek); continue }
-      push(acc, { tanggal: t.tanggal, transaksi: t.transaksi, cabang: t.cabang, debet: t.debet, kredit: t.kredit }, null)
+      push(seen, acc, { tanggal: t.tanggal, transaksi: t.transaksi, cabang: t.cabang, debet: t.debet, kredit: t.kredit }, null)
       namaRek.add(`${acc.namaRek} (${acc.noRek})`)
     }
     ringkasanRekening = [...namaRek].join(', ') || '-'
@@ -117,7 +137,8 @@ export default defineEventHandler(async (event) => {
         })
       }
     }
-    for (const t of parsed) push(acc, t, null)
+    const seen = await buildSeen([acc.id])
+    for (const t of parsed) push(seen, acc, t, null)
     ringkasanRekening = `${acc.namaRek} (${acc.noRek})`
   }
 
@@ -129,7 +150,7 @@ export default defineEventHandler(async (event) => {
     await db.insert(bankTxns).values(toInsert.slice(i, i + 500))
   }
   for (const [accId, saldoAwal] of touchedAccounts) {
-    await recomputeAccountSaldo(accId, saldoAwal)
+    await recomputeAccountSaldo(accId, saldoAwal, touchedMinTanggal.get(accId))
   }
 
   const tanggalBaru = toInsert.map(t => t.tanggal!).sort()
