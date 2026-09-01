@@ -67,6 +67,34 @@ watch(visibleAccounts, (list) => {
 })
 
 const selectedAccount = computed(() => accounts.value.find(a => a.id === filterAccount.value) || null)
+
+// -- combobox "Rekening": bisa pilih dari daftar atau ketik buat nyari --
+function accountLabel(acc: Account) { return `${acc.bankType} · ${acc.namaRek} (${acc.noRek})` }
+const accountQuery = ref('')
+const accountDropdownOpen = ref(false)
+watch(selectedAccount, (acc) => { accountQuery.value = acc ? accountLabel(acc) : '' }, { immediate: true })
+const accountOptions = computed(() => {
+  const q = accountQuery.value.trim().toLowerCase()
+  if (!q || (selectedAccount.value && accountLabel(selectedAccount.value).toLowerCase() === q)) return visibleAccounts.value
+  return visibleAccounts.value.filter(a => accountLabel(a).toLowerCase().includes(q))
+})
+function onAccountInput(value: string) {
+  accountQuery.value = value
+  accountDropdownOpen.value = true
+  if (!value.trim()) filterAccount.value = ''
+}
+function pickAccount(acc: Account) {
+  filterAccount.value = acc.id
+  accountQuery.value = accountLabel(acc)
+  accountDropdownOpen.value = false
+}
+function onAccountEnter() {
+  if (accountOptions.value.length === 1) pickAccount(accountOptions.value[0]!)
+}
+function closeAccountDropdown() {
+  accountDropdownOpen.value = false
+  accountQuery.value = selectedAccount.value ? accountLabel(selectedAccount.value) : ''
+}
 /** Warna Grup rekening yang lagi dipilih — null kalau rekeningnya gak masuk grup manapun,
  *  biar header tabel balik ke warna default (bukan dipaksa abu-abu). */
 const selectedAccountWarna = computed(() => groups.value.find(g => g.id === selectedAccount.value?.groupId)?.warna || null)
@@ -332,10 +360,27 @@ async function onExport() {
         <option value="MANDIRI">Mandiri</option><option value="OTHER">Lainnya</option>
       </select>
       <span class="gm-label" style="margin-left:10px;">Rekening:</span>
-      <select v-model="filterAccount">
-        <option value="">— pilih rekening —</option>
-        <option v-for="acc in visibleAccounts" :key="acc.id" :value="acc.id">{{ acc.bankType }} · {{ acc.namaRek }} ({{ acc.noRek }})</option>
-      </select>
+      <div class="account-combobox" @click.stop>
+        <input
+          type="text"
+          placeholder="— pilih / ketik cari rekening —"
+          style="width:230px;"
+          :value="accountQuery"
+          @input="onAccountInput(($event.target as HTMLInputElement).value)"
+          @focus="accountDropdownOpen = true"
+          @keydown.enter.prevent="onAccountEnter"
+          @keydown.esc="closeAccountDropdown"
+          @blur="closeAccountDropdown"
+        />
+        <ul v-if="accountDropdownOpen" class="account-combobox-list">
+          <li v-if="!accountOptions.length" class="account-combobox-empty">Gak ada rekening yang cocok.</li>
+          <li
+            v-for="acc in accountOptions" :key="acc.id"
+            :class="{ active: acc.id === filterAccount }"
+            @mousedown.prevent="pickAccount(acc)"
+          >{{ accountLabel(acc) }}</li>
+        </ul>
+      </div>
     </div>
 
     <div v-if="!accounts.length" class="empty-state">Belum ada rekening bank. Tambahkan dulu lewat menu "Master Data".</div>
@@ -388,7 +433,7 @@ async function onExport() {
               <td class="num">{{ t.debet ? t.debet.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.kredit ? t.kredit.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.saldo.toLocaleString('id-ID') }}</td>
-              <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:110px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
+              <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:150px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
               <td style="min-width:160px;">
                 <textarea
                   :ref="(el) => autoGrow(el)" class="wrap-textarea" rows="1"
@@ -473,6 +518,45 @@ async function onExport() {
 </template>
 
 <style scoped>
+.account-combobox {
+  position: relative;
+  display: inline-block;
+}
+.account-combobox-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.account-combobox-list li {
+  padding: 6px 8px;
+  font-size: 12.5px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.account-combobox-list li:hover,
+.account-combobox-list li.active {
+  background: var(--accent-light);
+}
+.account-combobox-empty {
+  color: var(--muted);
+  cursor: default !important;
+}
+.account-combobox-empty:hover {
+  background: transparent !important;
+}
+
 .table-wrap {
   max-height: 520px;
   overflow-y: auto;
