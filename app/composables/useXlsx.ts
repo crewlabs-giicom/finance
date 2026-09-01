@@ -133,5 +133,17 @@ export function useXlsx() {
     XLSX.writeFile(wb, `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  return { readFileRows, exportTable, exportTables, exportTablesColored }
+  /** Generate & download .xlsx template kosong (header + contoh isi opsional) buat panduan upload. */
+  async function downloadTemplate(headers: string[], sampleRows: (string | number)[][], filename: string, sheetName = 'Template') {
+    const XLSX = await lib()
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows])
+    ws['!cols'] = headers.map((h, i) => ({
+      wch: Math.max(h.length, ...sampleRows.map(r => String(r[i] ?? '').length), 12) + 2
+    }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31))
+    XLSX.writeFile(wb, `${filename}.xlsx`)
+  }
+
+  return { readFileRows, exportTable, exportTables, exportTablesColored, downloadTemplate }
 }

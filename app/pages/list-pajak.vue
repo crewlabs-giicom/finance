@@ -52,6 +52,8 @@ function inPeriod(r: PpnRow) {
   return ym >= fromYm.value && ym <= toYm.value
 }
 
+const npwpOptions = computed(() => npwps.value.map(n => ({ id: n.id, label: n.namaNpwp })))
+
 const visibleSections = computed(() =>
   sections.value
     .filter(s => !filterGroup.value || (s.id || '') === filterGroup.value)
@@ -383,11 +385,14 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               </td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.debet, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { debet: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.kredit, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { kredit: parseNum(($event.target as HTMLInputElement).value) })" /></td>
-              <td>
-                <select :value="r.npwpId || ''" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { npwpId: ($event.target as HTMLSelectElement).value || null })">
-                  <option value="">-</option>
-                  <option v-for="n in npwps" :key="n.id" :value="n.id">{{ n.namaNpwp }}</option>
-                </select>
+              <td style="min-width:220px;">
+                <SearchSelect
+                  :model-value="r.npwpId || ''"
+                  :options="npwpOptions"
+                  :disabled="isLocked(r.tanggal)"
+                  placeholder="-"
+                  @update:model-value="(v) => patchRow(r, { npwpId: v || null })"
+                />
               </td>
               <td><input class="cell-input" :value="r.noInvoice" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { noInvoice: ($event.target as HTMLInputElement).value })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph23, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph23: parseNum(($event.target as HTMLInputElement).value) })" /></td>

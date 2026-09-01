@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { fmtRp, formatDateShort, lightenColor } from '~/utils/format'
+import { fmtRp, formatDateShort, lightenColor, parseTagList } from '~/utils/format'
 
 /**
  * Daftar Norminatif adalah tampilan turunan dari List Pajak — tidak punya tabel
- * sendiri. Yang ditampilkan hanya baris ppn_rows yang Tags-nya PPh 23 atau
- * 21 BP; edit di sini langsung menulis balik ke baris List Pajak yang sama.
+ * sendiri. Yang ditampilkan hanya baris ppn_rows yang ditag "Norm" BARENG PPh 23
+ * atau 21 BP (tag "Norm" sengaja gak bisa berdiri sendiri — harus dipasangkan
+ * sama tag pajak biar user bisa milih baris mana yang mau dilaporin di sini);
+ * edit di sini langsung menulis balik ke baris List Pajak yang sama.
  */
 
 const api = useApi()
@@ -54,11 +56,15 @@ function inPeriod(tanggal: string) {
   return ym >= fromYm.value && ym <= toYm.value
 }
 
+/** Baris cuma masuk Norminatif kalau ditag "Norm" DI Rincian Bank/List Pajak —
+ *  tag pajak (PPH 23/21 BP) doang gak cukup, harus dipasangkan sama "Norm" biar
+ *  user bisa milih-milih baris pajak mana yang beneran mau dilaporin di sini. */
 function matchesJenis(r: PpnRow) {
-  const tag = (r.tags || '').trim().toUpperCase()
-  if (filterJenis.value === 'pph23') return tag === 'PPH 23'
-  if (filterJenis.value === 'pph21bp') return tag === '21 BP'
-  return tag === 'PPH 23' || tag === '21 BP'
+  const list = parseTagList(r.tags)
+  if (!list.includes('Norm')) return false
+  if (filterJenis.value === 'pph23') return list.includes('PPH 23')
+  if (filterJenis.value === 'pph21bp') return list.includes('21 BP')
+  return list.includes('PPH 23') || list.includes('21 BP')
 }
 function jumlahPph(r: PpnRow) {
   return (r.pph23 || 0) + (r.pph23_4a2 || 0) + (r.pph21bp || 0)
@@ -66,6 +72,7 @@ function jumlahPph(r: PpnRow) {
 function npwpOf(id: string | null) {
   return npwps.value.find(n => n.id === id)
 }
+const npwpOptions = computed(() => npwps.value.map(n => ({ id: n.id, label: `${n.noNpwp} - ${n.namaNpwp}` })))
 
 const visibleSections = computed(() =>
   sections.value
@@ -91,9 +98,7 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
 }
 
 /** Pilihan "+ Tambah NPWP Baru" di dropdown, seperti onDnNpwpChange() di app lama. */
-async function onNpwpChange(r: PpnRow, value: string) {
-  if (value !== '__new__') { await patchRow(r, { npwpId: value || null }); return }
-
+async function onNpwpCreate(r: PpnRow) {
   const noNpwp = prompt('No. NPWP baru:')?.trim()
   if (!noNpwp) { await loadAll(); return }
   const namaNpwp = prompt('Nama NPWP:')?.trim()
@@ -176,7 +181,7 @@ async function onExport() {
     </PeriodRangeFilter>
 
     <div v-if="!visibleSections.length" class="empty-state">
-      Belum ada data. Pastikan ada baris di List Pajak dengan Tags "PPH 23" atau "21 BP", lalu cek filter periode di atas.
+      Belum ada data. Pastikan ada baris di List Pajak yang ditag "Norm" BARENG "PPH 23" atau "21 BP" (dua tag sekaligus), lalu cek filter periode di atas.
     </div>
 
     <div v-for="sec in visibleSections" :key="sec.id || 'none'" class="panel">
@@ -198,6 +203,7 @@ async function onExport() {
                   title="Pilih semua"
                 />
               </th>
+              <th rowspan="2" title="Status tag &quot;21 BP&quot; di Rincian Bank/List Pajak">PPh 21</th>
               <th rowspan="2">No</th>
               <th colspan="4" style="text-align:center;">Data Penerima</th>
               <th rowspan="2">No. Transaksi</th>
@@ -215,14 +221,20 @@ async function onExport() {
           <tbody>
             <tr v-for="(r, i) in sec.rows" :key="r.id">
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
+              <td class="num"><input type="checkbox" :checked="parseTagList(r.tags).includes('21 BP')" disabled /></td>
               <td>{{ i + 1 }}</td>
               <td>{{ npwpOf(r.npwpId)?.namaNpwp || '-' }}</td>
               <td>
-                <select :value="r.npwpId || ''" :disabled="isLocked(r.tanggal)" @change="onNpwpChange(r, ($event.target as HTMLSelectElement).value)">
-                  <option value="">- pilih NPWP -</option>
-                  <option v-for="n in npwps" :key="n.id" :value="n.id">{{ n.noNpwp }} - {{ n.namaNpwp }}</option>
-                  <option value="__new__">+ Tambah NPWP Baru…</option>
-                </select>
+                <SearchSelect
+                  :model-value="r.npwpId || ''"
+                  :options="npwpOptions"
+                  :disabled="isLocked(r.tanggal)"
+                  placeholder="- pilih NPWP -"
+                  allow-create
+                  create-label="+ Tambah NPWP Baru…"
+                  @update:model-value="(v) => patchRow(r, { npwpId: v || null })"
+                  @create="onNpwpCreate(r)"
+                />
               </td>
               <td>{{ npwpOf(r.npwpId)?.nik || '-' }}</td>
               <td>{{ npwpOf(r.npwpId)?.alamat || '-' }}</td>
@@ -235,7 +247,7 @@ async function onExport() {
               <td><input class="cell-input" :value="r.lampiranFakturPajak" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { lampiranFakturPajak: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="grand-total-row">
-              <td colspan="9" style="text-align:right;">TOTAL</td>
+              <td colspan="10" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + (r.debet || 0), 0)) }}</td>
               <td></td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + jumlahPph(r), 0)) }}</td>

@@ -441,8 +441,8 @@ async function onExport() {
                   @change="patchTxn(t, 'ketTransaksiManual', ($event.target as HTMLTextAreaElement).value)"
                 ></textarea>
               </td>
-              <td>
-                <span class="tag-cell" style="width:90px;" @click="openTagMenu($event, t.id)" title="Klik buat pilih tag (bisa lebih dari satu)">
+              <td style="white-space:normal;">
+                <span class="tag-cell" style="width:90px;white-space:normal;word-break:break-word;" @click="openTagMenu($event, t.id)" title="Klik buat pilih tag (bisa lebih dari satu)">
                   {{ t.tag ? t.tag.split(',').join(', ') : '-' }}
                 </span>
               </td>

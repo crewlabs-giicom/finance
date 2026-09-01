@@ -6,7 +6,7 @@ const api = useApi()
 const { load: loadGroups } = useGroups()
 const { load: loadPics } = usePics()
 const { lockYm, label: lockLabel, refresh: refreshLock, setLock } = usePeriodLock()
-const { readFileRows } = useXlsx()
+const { readFileRows, downloadTemplate } = useXlsx()
 
 type Group = { id: string; nama: string; warna: string | null; urutan: number; picId: string | null }
 type Account = {
@@ -165,6 +165,17 @@ const NPWP_HEADERS = {
   nik: ['NIK'],
   alamat: ['ALAMAT']
 }
+function downloadNpwpTemplate() {
+  downloadTemplate(
+    ['No. NPWP', 'Nama NPWP', 'NIK', 'Alamat'],
+    [
+      ['02.162.888.8-053.000', 'TIKTOK PTE.LTD.', '', ''],
+      ['73.666.690.0-031.000', 'PT SHOPEE INTERNATIONAL INDONESIA', '', '']
+    ],
+    'Template_Master_NPWP'
+  )
+}
+
 const uploadingNpwp = ref(false)
 async function onNpwpUpload(evt: Event) {
   const input = evt.target as HTMLInputElement
@@ -305,6 +316,7 @@ function groupLabel(id: string | null) {
         <input v-model="newNpwp.nik" placeholder="NIK" style="width:160px;" />
         <input v-model="newNpwp.alamat" placeholder="Alamat" style="width:220px;" @keyup.enter="addNpwp" />
         <button class="btn" @click="addNpwp">+ Tambah NPWP</button>
+        <button class="btn secondary" @click="downloadNpwpTemplate">📄 Template</button>
         <label class="btn secondary" style="cursor:pointer;">
           {{ uploadingNpwp ? '⏳ Memproses…' : '📤 Upload' }}
           <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="uploadingNpwp" @change="onNpwpUpload" />
