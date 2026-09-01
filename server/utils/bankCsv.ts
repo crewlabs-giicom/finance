@@ -291,9 +291,31 @@ export function deriveKetTransaksi(raw: string | null | undefined): string {
   return ''
 }
 
-/** Kunci dedup transaksi — sama persis dengan mpTxnDupKey() di app lama. */
+/**
+ * Sebagian export CSV bank (ketauan dari BCA) nulis Keterangan yang beda-beda
+ * dikit tergantung kapan mutasinya ditarik, walau transaksinya sama persis:
+ * kadang ada placeholder dash kosong ("... IURAN PERUMA - - 17010380") yang di
+ * tarikan lain hilang ("... IURAN PERUMA 17010380"), dan kadang ada nomor
+ * referensi/rekening panjang nempel di ujung ("...GLOBAL INDO INOVAT
+ * 0232056265961111") yang di tarikan lain gak ada. Dibersihin dulu KHUSUS buat
+ * kunci dedup (t.transaksi aslinya tetap disimpan & ditampilkan apa adanya)
+ * biar re-upload file yang sama gak keitung transaksi baru.
+ *
+ * Threshold 14+ digit sengaja jauh di atas nomor referensi pendek yang
+ * beneran bagian pembeda transaksi (mis. "17010380" 8 digit di atas) — biar
+ * gak ketiban ke-strip dan dua transaksi beda malah keanggep sama.
+ */
+function normalizeForDedup(text: string): string {
+  return text
+    .replace(/(\s-)+\s/g, ' ')
+    .replace(/\s\d{14,}\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Kunci dedup transaksi — sama persis dengan mpTxnDupKey() di app lama, plus normalisasi noise di atas. */
 export function txnDupKey(t: { accountId: string; tanggal: string; transaksi: string; debet: number; kredit: number }) {
-  return `${t.accountId}|${t.tanggal}|${t.transaksi}|${t.debet}|${t.kredit}`
+  return `${t.accountId}|${t.tanggal}|${normalizeForDedup(t.transaksi)}|${t.debet}|${t.kredit}`
 }
 
 /**
