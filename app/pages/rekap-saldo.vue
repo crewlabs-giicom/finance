@@ -69,8 +69,20 @@ async function resetSaldo() {
 }
 
 // -- data per Grup: satuan utama halaman ini sekarang Grup, bukan jenis data --
-const filteredBalances = computed(() => picFilter.value ? balances.value.filter(b => b.pic === picFilter.value) : balances.value)
-function balancesForGroup(groupId: string | null) { return filteredBalances.value.filter(b => (b.grup || null) === groupId) }
+function rawBalancesForGroup(groupId: string | null) { return balances.value.filter(b => (b.grup || null) === groupId) }
+/** Filter PIC bekerja di 2 level yang beda:
+ *  - Grup yang PIC PENANGGUNG JAWABNYA (bank_groups.picId) cocok -> tampilin SEMUA
+ *    rekening grup itu (biar PIC-nya liat seluruh yang dia pegang).
+ *  - Grup LAIN (bukan tanggung jawab PIC ini) -> tetap tampilin grupnya kalau ada
+ *    rekening yang secara individual di-assign ke PIC ini (kolom PIC per baris),
+ *    tapi cuma baris yang cocok — PIC bisa juga pegang 1-2 rekening di grup orang lain.
+ *  - "Tanpa Grup" (g null) -> selalu per-baris (gak ada konsep "grup ini punya PIC ini"). */
+function balancesForGroup(g: Group | null) {
+  const raw = rawBalancesForGroup(g?.id ?? null)
+  if (!picFilter.value) return raw
+  if (g && g.picId === picFilter.value) return raw
+  return raw.filter(b => b.pic === picFilter.value)
+}
 function depositoForGroup(groupId: string | null) { return deposito.value.filter(d => (d.groupId || null) === groupId) }
 function hutangForGroup(groupId: string | null) { return hutang.value.filter(h => (h.groupId || null) === groupId) }
 function bayarForGroup(groupId: string | null) { return bayar.value.filter(b => (b.groupId || null) === groupId) }
@@ -84,10 +96,10 @@ function resolveGroups(names: string[]) {
   return names
     .map(n => groups.value.find(g => g.nama.trim().toUpperCase() === n.toUpperCase()))
     .filter((g): g is Group => !!g)
-    // Filter PIC = grup yang PIC PENANGGUNG JAWABNYA (bank_groups.picId, di-set di Master
-    // Data) sesuai PIC yang dipilih — bukan cuma nyaring baris Saldo RK di dalam card-nya,
-    // tapi nentuin card GRUP mana aja yang ditampilin sama sekali.
-    .filter(g => !picFilter.value || g.picId === picFilter.value)
+    // Card grup ditampilin kalau: gak ada filter, ATAU grup ini emang tanggung jawab
+    // PIC yang dipilih, ATAU grup ini punya minimal 1 rekening yang PIC-nya (per baris)
+    // cocok — biar rekening milik PIC itu tetap ketemu walau nangkring di grup orang lain.
+    .filter(g => !picFilter.value || g.picId === picFilter.value || rawBalancesForGroup(g.id).some(b => b.pic === picFilter.value))
 }
 const leftGroups = computed(() => resolveGroups(LEFT_NAMES))
 const rightGroups = computed(() => resolveGroups(RIGHT_NAMES))
@@ -103,7 +115,13 @@ function subtotal(rows: Balance[]) {
     bisaDipakai: rows.reduce((s, r) => s + (r.bisaDipakai || 0), 0)
   }
 }
-const grandTotal = computed(() => subtotal(filteredBalances.value))
+/** Grand total ngikutin persis apa yang lagi ditampilin di layar (semua card yang
+ *  kelihatan), bukan sekadar filter flat — konsisten sama logika balancesForGroup di atas. */
+const grandTotal = computed(() => {
+  const shownGroups = [...leftGroups.value, ...rightGroups.value]
+  const rows = [...shownGroups.flatMap(g => balancesForGroup(g)), ...balancesForGroup(null)]
+  return subtotal(rows)
+})
 const totalDeposito = computed(() => deposito.value.reduce((s, d) => s + (d.nominal || 0), 0))
 const totalHutang = computed(() => hutang.value.reduce((s, h) => s + (h.nominal || 0), 0))
 const totalBayar = computed(() => bayar.value.reduce((s, b) => s + (b.nominal || 0), 0))
@@ -240,7 +258,7 @@ async function onBayarUpload(evt: Event) {
           <RekapGroupCard
             v-for="g in leftGroups" :key="g.id"
             :group-id="g.id" :group-nama="g.nama" :group-warna="g.warna"
-            :balances="balancesForGroup(g.id)" :deposito="depositoForGroup(g.id)"
+            :balances="balancesForGroup(g)" :deposito="depositoForGroup(g.id)"
             :hutang="hutangForGroup(g.id)" :bayar="bayarForGroup(g.id)"
             :pics="pics" :groups="groups"
             :deposito-colors="depositoColors" :hutang-colors="hutangColors" :bayar-colors="bayarColors"
@@ -251,7 +269,7 @@ async function onBayarUpload(evt: Event) {
           <RekapGroupCard
             v-for="g in rightGroups" :key="g.id"
             :group-id="g.id" :group-nama="g.nama" :group-warna="g.warna"
-            :balances="balancesForGroup(g.id)" :deposito="depositoForGroup(g.id)"
+            :balances="balancesForGroup(g)" :deposito="depositoForGroup(g.id)"
             :hutang="hutangForGroup(g.id)" :bayar="bayarForGroup(g.id)"
             :pics="pics" :groups="groups"
             :deposito-colors="depositoColors" :hutang-colors="hutangColors" :bayar-colors="bayarColors"
