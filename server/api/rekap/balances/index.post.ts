@@ -1,15 +1,14 @@
 import { bankBalances } from '../../../database/schema'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  if (!body?.rek) throw createError({ statusCode: 400, statusMessage: 'Rek wajib diisi.' })
+  const body = await readBody(event) || {}
 
   const id = genId('bb')
   const saldo = Number(body.saldo) || 0
   const row = {
     id,
     pic: body.pic || null,
-    rek: body.rek,
+    rek: body.rek || '',
     saldo,
     bisaDipakai: hitungBisaDipakai(saldo),
     ket: body.ket || '',

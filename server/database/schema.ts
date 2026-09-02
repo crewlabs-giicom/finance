@@ -295,7 +295,8 @@ export const depositoRows = sqliteTable('deposito_rows', {
   tglMasuk: text('tgl_masuk'),
   rate: text('rate').default(''),
   jatuhTempo: text('jatuh_tempo'),
-  ket: text('ket').default('')
+  ket: text('ket').default(''),
+  groupId: text('group_id').references(() => bankGroups.id)
 })
 
 export const hutangRows = sqliteTable('hutang_rows', {
@@ -306,7 +307,8 @@ export const hutangRows = sqliteTable('hutang_rows', {
   rate: text('rate').default(''),
   tglPinjam: text('tgl_pinjam'),
   jatuhTempo: text('jatuh_tempo'),
-  ket: text('ket').default('')
+  ket: text('ket').default(''),
+  groupId: text('group_id').references(() => bankGroups.id)
 })
 
 export const bayarRows = sqliteTable('bayar_rows', {
