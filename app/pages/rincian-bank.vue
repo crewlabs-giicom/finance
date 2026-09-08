@@ -30,6 +30,7 @@ const filterDateTo = ref(lastOfMonth(today.getFullYear(), today.getMonth() + 1))
 const filterPic = ref('') // '' = semua PIC
 const filterBank = ref('') // '' = semua bank
 const filterAccount = ref('') // '' = belum pilih rekening — datanya sengaja gak ditampilin dulu
+const filterSearch = ref('')
 
 /** Endpoint /api/bank-txns di-scope ke satu rekening + rentang tanggal (lihat
  *  komentar di server/api/bank-txns/index.get.ts) — jangan di-fetch kalau
@@ -100,8 +101,11 @@ function closeAccountDropdown() {
 const selectedAccountWarna = computed(() => groups.value.find(g => g.id === selectedAccount.value?.groupId)?.warna || null)
 
 function txnsForAccount(accId: string) {
+  const q = filterSearch.value.trim().toLowerCase()
   return txns.value
     .filter(t => t.accountId === accId && t.tanggal >= filterDateFrom.value && t.tanggal <= filterDateTo.value)
+    .filter(t => !q || [t.transaksi, t.cabang, t.noBankManual, t.ketTransaksiManual, t.tag, t.noteManual]
+      .some(v => (v || '').toLowerCase().includes(q)))
     .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : (a.urutan ?? 0) - (b.urutan ?? 0)))
 }
 
@@ -109,6 +113,7 @@ function txnsForAccount(accId: string) {
 const PAGE_SIZE = 50
 const currentPage = ref(1)
 watch([filterAccount, filterDateFrom, filterDateTo], () => { currentPage.value = 1; loadTxns() })
+watch(filterSearch, () => { currentPage.value = 1 })
 
 const allTxnsForSelected = computed(() => selectedAccount.value ? txnsForAccount(selectedAccount.value.id) : [])
 const totalPages = computed(() => Math.max(1, Math.ceil(allTxnsForSelected.value.length / PAGE_SIZE)))
@@ -119,6 +124,11 @@ const pagedTxns = computed(() => {
 function goToPage(p: number) {
   currentPage.value = Math.min(Math.max(1, p), totalPages.value)
 }
+
+// -- export: pas lagi export, tabel dipaksa render semua baris yang ke-filter
+// (bukan cuma halaman yang lagi kelihatan) --
+const exporting = ref(false)
+const rowsInTable = computed(() => exporting.value ? allTxnsForSelected.value : pagedTxns.value)
 
 function rowColor(id: string) {
   return rowColors.value.find(c => c.entityKind === 'rbtxn' && c.entityId === id)?.color || ''
@@ -312,11 +322,33 @@ async function onCsvUpload(evt: Event) {
   }
 }
 
+// Kolom Debet/Kredit/Saldo di tabel (index setelah kolom .no-export dibuang).
+const COL_DEBET = 4
+const COL_KREDIT = 5
+const COL_SALDO = 6
+
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
-  const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
-  if (!tables.length) return
-  await exportTablesColored(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'Rincian_Bank')
+  exporting.value = true
+  await nextTick()
+  try {
+    const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
+    if (!tables.length) return
+    await exportTablesColored(tables.map(t => ({
+      table: t,
+      sheetName: t.dataset.sheet || 'Sheet',
+      numericCell: (rowIdx: number, colIdx: number) => {
+        const txn = rowsInTable.value[rowIdx]
+        if (!txn) return null
+        if (colIdx === COL_DEBET) return txn.debet || null
+        if (colIdx === COL_KREDIT) return txn.kredit || null
+        if (colIdx === COL_SALDO) return txn.saldo
+        return null
+      }
+    })), 'Rincian_Bank')
+  } finally {
+    exporting.value = false
+  }
 }
 </script>
 
@@ -381,6 +413,13 @@ async function onExport() {
           >{{ accountLabel(acc) }}</li>
         </ul>
       </div>
+      <span class="gm-label" style="margin-left:10px;">Cari:</span>
+      <input
+        type="text"
+        v-model="filterSearch"
+        placeholder="Cari transaksi, cabang, no bank, catatan..."
+        style="width:220px;"
+      />
     </div>
 
     <div v-if="!accounts.length" class="empty-state">Belum ada rekening bank. Tambahkan dulu lewat menu "Master Data".</div>
@@ -417,14 +456,14 @@ async function onExport() {
           <tbody>
             <tr v-if="!allTxnsForSelected.length"><td colspan="13" class="empty-state">Belum ada transaksi di periode ini.</td></tr>
             <tr
-              v-for="(t, i) in pagedTxns"
+              v-for="(t, i) in rowsInTable"
               :key="t.id"
               :style="rowStyle(t)"
               @contextmenu="openColorMenu($event, t.id)"
               title="Klik kanan buat warnain / duplicate baris"
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" /></td>
-              <td>{{ (currentPage - 1) * PAGE_SIZE + i + 1 }}</td>
+              <td>{{ exporting ? i + 1 : (currentPage - 1) * PAGE_SIZE + i + 1 }}</td>
               <td>{{ t.tanggal }}</td>
               <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>

@@ -97,12 +97,21 @@ export function useXlsx() {
   }
 
   /** Sama seperti exportTables, tapi warna background tiap <tr> (dari style/computed
-   *  style di DOM aslinya) ikut ditulis ke fill cell Excel-nya. */
-  async function exportTablesColored(items: { table: HTMLTableElement; sheetName: string }[], filenamePrefix: string) {
+   *  style di DOM aslinya) ikut ditulis ke fill cell Excel-nya.
+   *
+   *  `numericCell`, kalau dikasih, dipanggil per baris data (index 0-based, gak
+   *  termasuk header) & kolom buat nimpa cell itu jadi angka biner asli (bukan hasil
+   *  parse-ulang teks yang sudah diformat toLocaleString) — soalnya heuristik parser
+   *  angka bawaan table_to_sheet gak paham format ribuan gaya Indonesia ("1.900.000")
+   *  dan bisa salah baca. Return null/undefined buat biarin cell itu apa adanya. */
+  async function exportTablesColored(
+    items: { table: HTMLTableElement; sheetName: string; numericCell?: (dataRowIndex: number, colIndex: number) => number | null | undefined }[],
+    filenamePrefix: string
+  ) {
     const XLSX = await libStyled()
     const wb = XLSX.utils.book_new()
     const used = new Set<string>()
-    for (const { table, sheetName } of items) {
+    for (const { table, sheetName, numericCell } of items) {
       const origRows = Array.from(table.querySelectorAll('tr'))
       const clone = table.cloneNode(true) as HTMLTableElement
       clone.querySelectorAll('.no-export').forEach(el => el.remove())
@@ -117,9 +126,13 @@ export function useXlsx() {
       cloneRows.forEach((tr, r) => {
         const bg = origRows[r] ? getComputedStyle(origRows[r]!).backgroundColor : ''
         const argb = cssColorToArgb(bg)
-        if (!argb) return
         Array.from(tr.querySelectorAll('th,td')).forEach((_, c) => {
           const addr = XLSX.utils.encode_cell({ r, c })
+          if (numericCell && r > 0) {
+            const num = numericCell(r - 1, c)
+            if (num !== null && num !== undefined) ws[addr] = { t: 'n', v: num }
+          }
+          if (!argb) return
           if (!ws[addr]) ws[addr] = { t: 's', v: '' }
           ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: argb }, bgColor: { rgb: argb } } }
         })
