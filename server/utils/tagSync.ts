@@ -26,20 +26,23 @@ function computeTagFormula(tags: string[], debet: number) {
   return { pph23, pph23_4a2, pph21bp }
 }
 
-function hasManualPpnData(r: typeof ppnRows.$inferSelect) {
-  return !!(r.npwpId || r.noInvoice || r.lampiranFakturPajak || r.masaKredit || r.bentukJenisBiaya)
+/** `code`/`note` ikut di-auto-copy dari noBankManual tiap sync (lihat di bawah) — jadi
+ *  cuma dianggap data manual beneran kalau isinya BEDA dari nilai auto-copy saat ini,
+ *  bukan sekadar "keisi" (soalnya noBankManual hampir selalu keisi otomatis). */
+function hasManualPpnData(r: typeof ppnRows.$inferSelect, autoCode: string) {
+  return !!(r.npwpId || r.noInvoice || r.lampiranFakturPajak || r.masaKredit || r.bentukJenisBiaya || (r.code && r.code !== autoCode))
 }
-function hasManualEntData(r: typeof entRows.$inferSelect) {
-  return !!(r.place || r.alamat || r.jenis || r.clientName || r.posisi || r.company || r.jenisUsaha || r.note)
+function hasManualEntData(r: typeof entRows.$inferSelect, autoNote: string) {
+  return !!(r.place || r.alamat || r.jenis || r.clientName || r.posisi || r.company || r.jenisUsaha || (r.note && r.note !== autoNote))
 }
 
 /** Baris yang udah keisi data manual gak pernah dihapus otomatis — cuma dilepas connect-nya. */
-async function settlePpn(existing: typeof ppnRows.$inferSelect) {
-  if (hasManualPpnData(existing)) await db.update(ppnRows).set({ sourceTxnId: null }).where(eq(ppnRows.id, existing.id))
+async function settlePpn(existing: typeof ppnRows.$inferSelect, autoCode: string) {
+  if (hasManualPpnData(existing, autoCode)) await db.update(ppnRows).set({ sourceTxnId: null }).where(eq(ppnRows.id, existing.id))
   else await db.delete(ppnRows).where(eq(ppnRows.id, existing.id))
 }
-async function settleEnt(existing: typeof entRows.$inferSelect) {
-  if (hasManualEntData(existing)) await db.update(entRows).set({ sourceTxnId: null }).where(eq(entRows.id, existing.id))
+async function settleEnt(existing: typeof entRows.$inferSelect, autoNote: string) {
+  if (hasManualEntData(existing, autoNote)) await db.update(entRows).set({ sourceTxnId: null }).where(eq(entRows.id, existing.id))
   else await db.delete(entRows).where(eq(entRows.id, existing.id))
 }
 
@@ -70,7 +73,7 @@ export async function syncTagDerivedRows(txnId: string) {
       })
     }
   } else if (existingPpn) {
-    await settlePpn(existingPpn)
+    await settlePpn(existingPpn, t.noBankManual || '')
   }
 
   const [existingEnt] = await db.select().from(entRows).where(eq(entRows.sourceTxnId, txnId)).limit(1)
@@ -81,14 +84,16 @@ export async function syncTagDerivedRows(txnId: string) {
       await db.insert(entRows).values({ id: genId('ent'), sourceTxnId: txnId, groupId, tanggal: t.tanggal, description: desc, amount, note: t.noBankManual || '' })
     }
   } else if (existingEnt) {
-    await settleEnt(existingEnt)
+    await settleEnt(existingEnt, t.noBankManual || '')
   }
 }
 
 /** Dipanggil sebelum transaksi Rincian Bank dihapus, biar baris List Pajak/Entertainment yang nyambung gak ikut error FK. */
 export async function detachDerivedRows(txnId: string) {
+  const [t] = await db.select().from(bankTxns).where(eq(bankTxns.id, txnId)).limit(1)
+  const autoVal = t?.noBankManual || ''
   const [existingPpn] = await db.select().from(ppnRows).where(eq(ppnRows.sourceTxnId, txnId)).limit(1)
-  if (existingPpn) await settlePpn(existingPpn)
+  if (existingPpn) await settlePpn(existingPpn, autoVal)
   const [existingEnt] = await db.select().from(entRows).where(eq(entRows.sourceTxnId, txnId)).limit(1)
-  if (existingEnt) await settleEnt(existingEnt)
+  if (existingEnt) await settleEnt(existingEnt, autoVal)
 }
