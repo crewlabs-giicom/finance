@@ -30,7 +30,10 @@ const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
 const report = ref<HTMLElement | null>(null)
 async function onScreenshot() {
-  if (report.value) await capture(report.value, 'Rekap_Saldo')
+  if (!report.value) return
+  const res = await capture(report.value, 'Rekap_Saldo')
+  if (res?.copied) status.value = { type: 'ok', msg: '📸 Screenshot disalin ke clipboard — tinggal Ctrl+V di DingTalk atau aplikasi lain.' }
+  else if (res) status.value = { type: 'ok', msg: '📸 Browser ini gak dukung copy gambar langsung, screenshot didownload sebagai file.' }
 }
 async function onExport() {
   const tables = Array.from(report.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])

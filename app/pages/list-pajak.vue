@@ -137,6 +137,13 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
   }
 }
 
+/** Ubah Debet manual -> recompute pajak dari tag yang lagi aktif di baris itu, sama
+ *  kayak toggleTag() di atas, biar PPh 23/Final/PPh 21 BP selalu ngikutin Debet terbaru. */
+async function onDebetChange(r: PpnRow, value: string) {
+  const debet = parseNum(value)
+  await patchRow(r, { debet, ...computeTagFormula(parseTagList(r.tags), debet) })
+}
+
 async function onMasaKredit(r: PpnRow, part: 'y' | 'm', value: string) {
   const [curY, curM] = (r.masaKredit || '').split('-')
   const y = part === 'y' ? value : (curY || String(today.getFullYear()))
@@ -383,7 +390,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
                   @click="!isLocked(r.tanggal) && openTagMenu($event, r.id)"
                 >{{ r.tags ? r.tags.split(',').join(', ') : '-' }}</span>
               </td>
-              <td class="num"><input class="cell-input" :value="fmtNum(r.debet, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { debet: parseNum(($event.target as HTMLInputElement).value) })" /></td>
+              <td class="num"><input class="cell-input" :value="fmtNum(r.debet, true)" :disabled="isLocked(r.tanggal)" @change="onDebetChange(r, ($event.target as HTMLInputElement).value)" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.kredit, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { kredit: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td style="min-width:220px;">
                 <SearchSelect
