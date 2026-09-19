@@ -1,0 +1,1 @@
+ALTER TABLE `ppn_rows` ADD `tanggal_fp` text;

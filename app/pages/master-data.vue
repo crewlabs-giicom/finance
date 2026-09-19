@@ -42,6 +42,7 @@ const newAsetMaster = reactive({ tipe: '', kategori: '', div: '' })
 const newPicNama = ref('')
 const newStore = reactive({ groupId: '', nama: '', platform: '', saldoAwal: '' })
 const lockInput = ref('')
+const npwpFilter = ref('')
 
 async function loadAll() {
   ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, asetMaster.value, picList.value, userList.value, stores.value] = await Promise.all([
@@ -295,6 +296,12 @@ async function applyLock() {
 function groupLabel(id: string | null) {
   return groups.value.find(g => g.id === id)?.nama || 'Tanpa Grup'
 }
+
+const filteredNpwps = computed(() => {
+  const q = npwpFilter.value.trim().toLowerCase()
+  if (!q) return npwps.value
+  return npwps.value.filter(n => [n.noNpwp, n.namaNpwp, n.nik, n.alamat].some(v => (v || '').toLowerCase().includes(q)))
+})
 </script>
 
 <template>
@@ -321,13 +328,14 @@ function groupLabel(id: string | null) {
           {{ uploadingNpwp ? '⏳ Memproses…' : '📤 Upload' }}
           <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="uploadingNpwp" @change="onNpwpUpload" />
         </label>
+        <input v-model="npwpFilter" placeholder="🔍 Cari NPWP..." style="width:220px;margin-left:auto;" />
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th></th><th>No. NPWP</th><th>Nama</th><th>NIK</th><th>Alamat</th></tr></thead>
           <tbody>
-            <tr v-if="!npwps.length"><td colspan="5" class="empty-state">Belum ada NPWP.</td></tr>
-            <tr v-for="n in npwps" :key="n.id">
+            <tr v-if="!filteredNpwps.length"><td colspan="5" class="empty-state">Belum ada NPWP.</td></tr>
+            <tr v-for="n in filteredNpwps" :key="n.id">
               <td><span class="row-del" @click="deleteNpwp(n.id)">✕</span></td>
               <td><input class="cell-input" :value="n.noNpwp" @change="patchNpwp(n, { noNpwp: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="n.namaNpwp" @change="patchNpwp(n, { namaNpwp: ($event.target as HTMLInputElement).value })" /></td>
@@ -614,3 +622,10 @@ function groupLabel(id: string | null) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.table-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+}
+</style>

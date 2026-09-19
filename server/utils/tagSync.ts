@@ -2,12 +2,13 @@ import { eq } from 'drizzle-orm'
 import { bankTxns, bankAccounts, ppnRows, entRows } from '../database/schema'
 
 // Satu transaksi boleh punya lebih dari satu tag (disimpen comma-separated di kolom
-// "tag", mis. "PPH 23,Ent"). Tag "PPH 23" / "PP 23" / "PPH 4" / "21 BP" / "Final" di
-// Rincian Bank -> otomatis sinkron ke satu baris List Pajak. Tag "Ent" -> otomatis
+// "tag", mis. "PPH 23,Ent"). Tag "PPH 23" / "PP 23" / "PPH 4" / "21 BP" / "Final" / "PM" di
+// Rincian Bank -> otomatis sinkron ke satu baris List Pajak (tag "PM" dipakai List PM,
+// filter-view dari baris yang sama — lihat app/pages/list-pm.vue). Tag "Ent" -> otomatis
 // sinkron ke satu baris Entertainment — keduanya bisa aktif bareng buat transaksi yang
 // sama. Ganti tag / edit nominal-tanggal-keterangan transaksi otomatis update baris
 // terhubung (dilacak lewat sourceTxnId, gak pernah bikin baris dobel).
-const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final'])
+const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM'])
 const ENT_TAG = 'Ent'
 
 export function parseTagList(raw: string | null | undefined): string[] {

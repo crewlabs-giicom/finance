@@ -146,7 +146,8 @@ export const ppnRows = sqliteTable('ppn_rows', {
   pph21bp: real('pph21bp'),
   lampiranFakturPajak: text('lampiran_faktur_pajak').default(''),
   masaKredit: text('masa_kredit').default(''), // 'YYYY-MM'
-  bentukJenisBiaya: text('bentuk_jenis_biaya').default('')
+  bentukJenisBiaya: text('bentuk_jenis_biaya').default(''),
+  tanggalFp: text('tanggal_fp') // dipakai List PM (tag "PM") sebagai tanggal Faktur Pajak, beda dari `tanggal` (tanggal transaksi bank)
 }, (t) => ({
   groupIdx: index('ppn_rows_group_idx').on(t.groupId),
   sourceTxnIdx: index('ppn_rows_source_txn_idx').on(t.sourceTxnId),

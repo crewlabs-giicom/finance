@@ -30,6 +30,8 @@ const filterToMonth = ref(today.getMonth() + 1)
 const filterToYear = ref(today.getFullYear())
 const filterGroup = ref('')
 const filterMasaKredit = ref('')
+const filterTag = ref('')
+const filterSearch = ref('')
 const uploadGroup = ref('')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
@@ -54,6 +56,13 @@ function inPeriod(r: PpnRow) {
 
 const npwpOptions = computed(() => npwps.value.map(n => ({ id: n.id, label: n.namaNpwp })))
 
+function matchesSearch(r: PpnRow) {
+  const q = filterSearch.value.trim().toLowerCase()
+  if (!q) return true
+  return [r.code, r.store, r.description, r.note, r.noInvoice, r.bentukJenisBiaya]
+    .some(v => (v || '').toLowerCase().includes(q))
+}
+
 const visibleSections = computed(() =>
   sections.value
     .filter(s => !filterGroup.value || (s.id || '') === filterGroup.value)
@@ -61,7 +70,9 @@ const visibleSections = computed(() =>
       ...s,
       rows: rows.value.filter(r =>
         (r.groupId || '') === (s.id || '') && inPeriod(r) &&
-        (!filterMasaKredit.value || r.masaKredit === filterMasaKredit.value)
+        (!filterMasaKredit.value || r.masaKredit === filterMasaKredit.value) &&
+        (!filterTag.value || parseTagList(r.tags).includes(filterTag.value)) &&
+        matchesSearch(r)
       )
     }))
     .filter(s => s.rows.length)
@@ -329,6 +340,13 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
         <option value="">Semua Masa Kredit</option>
         <option v-for="mk in masaKreditOptions" :key="mk" :value="mk">{{ masaKreditLabel(mk) }}</option>
       </select>
+      <span class="gm-label" style="margin-left:10px;">Tag:</span>
+      <select v-model="filterTag">
+        <option value="">Semua Tag</option>
+        <option v-for="t in tags" :key="t.id" :value="t.nama">{{ t.nama }}</option>
+      </select>
+      <span class="gm-label" style="margin-left:10px;">Cari:</span>
+      <input type="text" v-model="filterSearch" placeholder="Cari transaksi, no bank, catatan..." style="width:200px;" />
     </PeriodRangeFilter>
 
     <div v-if="masaKreditSummary" class="status-box status-ok no-export" style="display:flex;gap:22px;flex-wrap:wrap;">

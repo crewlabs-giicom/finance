@@ -22,7 +22,7 @@ export const crud = {
       description: 'text', tags: 'str', debet: 'num', kredit: 'num', note: 'text',
       npwpId: 'ref', noInvoice: 'str', netDibayarkan: 'numOrNull', ppn: 'numOrNull',
       dpp: 'numOrNull', pph23: 'numOrNull', pph23_4a2: 'numOrNull', pph21bp: 'numOrNull',
-      lampiranFakturPajak: 'str', masaKredit: 'str', bentukJenisBiaya: 'str'
+      lampiranFakturPajak: 'str', masaKredit: 'str', bentukJenisBiaya: 'str', tanggalFp: 'date'
     }
   }),
 
