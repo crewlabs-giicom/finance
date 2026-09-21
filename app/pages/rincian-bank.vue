@@ -134,14 +134,16 @@ function rowColor(id: string) {
   return rowColors.value.find(c => c.entityKind === 'rbtxn' && c.entityId === id)?.color || ''
 }
 
-/** Warna baris: warna manual (klik kanan) menang kalau ada; kalau enggak, otomatis merah
- * kalau Debet keisi, hijau kalau Kredit keisi — dua-duanya gak akan bareng dalam satu baris. */
-function rowStyle(t: Txn) {
-  const manual = rowColor(t.id)
-  if (manual) return `background:${manual}`
+/** Warna otomatis (merah Debet / hijau Kredit) cuma di cell "No Bank" — sisa baris
+ * dibiarin putih. Warna manual (klik kanan) cuma di cell "Ket Transaksi". */
+function autoCellStyle(t: Txn) {
   if (t.debet > 0) return 'background:var(--red-bg)'
   if (t.kredit > 0) return 'background:var(--green-bg)'
   return ''
+}
+function manualCellStyle(t: Txn) {
+  const manual = rowColor(t.id)
+  return manual ? `background:${manual}` : ''
 }
 
 // -- popup tambah transaksi manual (satu form, target-nya selalu selectedAccount) --
@@ -458,7 +460,6 @@ async function onExport() {
             <tr
               v-for="(t, i) in rowsInTable"
               :key="t.id"
-              :style="rowStyle(t)"
               @contextmenu="openColorMenu($event, t.id)"
               title="Klik kanan buat warnain / duplicate baris"
             >
@@ -472,8 +473,8 @@ async function onExport() {
               <td class="num">{{ t.debet ? t.debet.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.kredit ? t.kredit.toLocaleString('id-ID') : '' }}</td>
               <td class="num">{{ t.saldo.toLocaleString('id-ID') }}</td>
-              <td><input type="text" :value="t.noBankManual" class="cell-edit" style="width:150px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
-              <td style="min-width:160px;">
+              <td :style="autoCellStyle(t)"><input type="text" :value="t.noBankManual" class="cell-edit" style="width:150px;" @change="patchTxn(t, 'noBankManual', ($event.target as HTMLInputElement).value)" /></td>
+              <td style="min-width:160px;" :style="manualCellStyle(t)">
                 <textarea
                   :ref="(el) => autoGrow(el)" class="wrap-textarea" rows="1"
                   :value="t.ketTransaksiManual" @input="autoGrow($event.target)"

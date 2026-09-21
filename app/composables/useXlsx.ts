@@ -96,8 +96,11 @@ export function useXlsx() {
     XLSX.writeFile(wb, `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  /** Sama seperti exportTables, tapi warna background tiap <tr> (dari style/computed
-   *  style di DOM aslinya) ikut ditulis ke fill cell Excel-nya.
+  /** Sama seperti exportTables, tapi warna background ikut ditulis ke fill cell Excel-nya
+   *  — dibaca dari computed style cell (`<td>`/`<th>`) itu sendiri kalau dia punya warna
+   *  sendiri (mis. Rincian Bank yang cuma warnain cell "No Bank"/"Ket Transaksi"), atau
+   *  fallback ke warna `<tr>`-nya kalau cell-nya transparan (pola lama, dipakai halaman
+   *  yang warnain satu baris penuh, mis. List Pajak/Daftar Norminatif/List PM).
    *
    *  `numericCell`, kalau dikasih, dipanggil per baris data (index 0-based, gak
    *  termasuk header) & kolom buat nimpa cell itu jadi angka biner asli (bukan hasil
@@ -124,14 +127,17 @@ export function useXlsx() {
       const ws = XLSX.utils.table_to_sheet(clone)
       const cloneRows = Array.from(clone.querySelectorAll('tr'))
       cloneRows.forEach((tr, r) => {
-        const bg = origRows[r] ? getComputedStyle(origRows[r]!).backgroundColor : ''
-        const argb = cssColorToArgb(bg)
+        const origRow = origRows[r]
+        const rowBg = origRow ? getComputedStyle(origRow).backgroundColor : ''
+        const origCells = origRow ? Array.from(origRow.querySelectorAll('th,td')) : []
         Array.from(tr.querySelectorAll('th,td')).forEach((_, c) => {
           const addr = XLSX.utils.encode_cell({ r, c })
           if (numericCell && r > 0) {
             const num = numericCell(r - 1, c)
             if (num !== null && num !== undefined) ws[addr] = { t: 'n', v: num }
           }
+          const cellBg = origCells[c] ? getComputedStyle(origCells[c] as HTMLElement).backgroundColor : ''
+          const argb = cssColorToArgb(cellBg) || cssColorToArgb(rowBg)
           if (!argb) return
           if (!ws[addr]) ws[addr] = { t: 's', v: '' }
           ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: argb }, bgColor: { rgb: argb } } }
