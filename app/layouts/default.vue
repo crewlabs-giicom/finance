@@ -7,7 +7,7 @@ const navItems = [
   { to: '/rekap-saldo', icon: '📊', label: 'Rekap Saldo' },
   { to: '/rincian-mp', icon: '🧾', label: 'Rincian MP' },
   { to: '/rincian-bank', icon: '🏦', label: 'Rincian Bank' },
-  { to: '/list-pajak', icon: '🧮', label: 'List PK' },
+  { to: '/list-pajak', icon: '🧮', label: 'List Pajak' },
   { to: '/list-pm', icon: '📋', label: 'List PM' },
   { to: '/entertainment', icon: '🍽️', label: 'Entertainment' },
   { to: '/aktiva-pasiva', icon: '⚖️', label: 'Aktiva - Pasiva' },

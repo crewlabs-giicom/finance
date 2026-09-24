@@ -19,6 +19,16 @@ const filterGroup = ref<string>('') // '' = semua grup
 
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
+/** Thead-nya 2 baris (nama toko di atas, Debet/Kredit/Saldo di bawah) — dua-duanya
+ * sticky, tapi CSS `top` bawaan (di main.css) sama-sama 0, jadi baris ke-2 numpuk
+ * pas nutupin baris nama toko waktu di-scroll. Diukur tinggi baris pertama beneran
+ * (bukan angka px ditebak) biar baris ke-2 nempel PAS di bawahnya, gak numpuk. */
+const headRow1Height = ref(28)
+function measureHeadRow1(el: Element | null) {
+  const tr = el as HTMLTableRowElement | null
+  if (tr?.offsetHeight) headRow1Height.value = tr.offsetHeight
+}
+
 async function loadAll() {
   ;[stores.value, entries.value] = await Promise.all([
     api<Store[]>('/api/mp/stores'),
@@ -166,17 +176,17 @@ async function onExport() {
       <div class="table-wrap">
         <table class="dense" :data-sheet="sec.nama">
           <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
-            <tr>
-              <th rowspan="2">Tanggal</th>
-              <th v-for="st in sec.stores" :key="st.id" colspan="3" style="text-align:center;">
+            <tr :ref="measureHeadRow1">
+              <th rowspan="2" style="z-index:2;">Tanggal</th>
+              <th v-for="st in sec.stores" :key="st.id" colspan="3" style="text-align:center;z-index:2;">
                 {{ st.platform ? st.platform + ' · ' : '' }}{{ st.nama }}
               </th>
             </tr>
             <tr>
               <template v-for="st in sec.stores" :key="st.id">
-                <th class="num">Debet</th>
-                <th class="num">Kredit</th>
-                <th class="num">Saldo</th>
+                <th class="num" :style="{ top: headRow1Height + 'px' }">Debet</th>
+                <th class="num" :style="{ top: headRow1Height + 'px' }">Kredit</th>
+                <th class="num" :style="{ top: headRow1Height + 'px' }">Saldo</th>
               </template>
             </tr>
           </thead>

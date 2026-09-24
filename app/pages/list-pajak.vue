@@ -5,7 +5,7 @@ import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetIm
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
-const { readFileRows, exportTables } = useXlsx()
+const { readFileRows, exportTablesColored } = useXlsx()
 const rowColors = useRowColors('ppn')
 
 type PpnRow = {
@@ -55,6 +55,30 @@ function inPeriod(r: PpnRow) {
 }
 
 const npwpOptions = computed(() => npwps.value.map(n => ({ id: n.id, label: n.namaNpwp })))
+function npwpOf(id: string | null) {
+  return npwps.value.find(n => n.id === id) || null
+}
+
+/** Kolom "No. NPWP" bisa diketik bebas — gak perlu buka Master Data dulu. Kalau
+ *  nomornya udah ada di master, tinggal di-link; kalau belum, baris master baru
+ *  langsung dibikin otomatis (Nama NPWP-nya sementara disamain sama nomornya,
+ *  bisa diganti belakangan lewat Master Data). */
+async function onNpwpNumberChange(r: PpnRow, value: string) {
+  const noNpwp = value.trim()
+  if (!noNpwp) { await patchRow(r, { npwpId: null }); return }
+
+  const existing = npwps.value.find(n => n.noNpwp.trim().toLowerCase() === noNpwp.toLowerCase())
+  if (existing) { await patchRow(r, { npwpId: existing.id }); return }
+
+  try {
+    const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp: noNpwp } })
+    npwps.value.push(created)
+    await patchRow(r, { npwpId: created.id })
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal tambah NPWP.' }
+    await loadAll()
+  }
+}
 
 function matchesSearch(r: PpnRow) {
   const q = filterSearch.value.trim().toLowerCase()
@@ -94,8 +118,6 @@ const masaKreditSummary = computed(() => {
   const s = (k: keyof PpnRow) => sel.reduce((a, r) => a + (Number(r[k]) || 0), 0)
   return { count: sel.length, debet: s('debet'), pph23: s('pph23'), final: s('pph23_4a2'), pph21bp: s('pph21bp') }
 })
-
-const kreditYears = Array.from({ length: 6 }, (_, i) => today.getFullYear() - 3 + i)
 
 /** Mirror computeTagFormula() di server/utils/tagSync.ts — beberapa tag pajak bisa
  *  aktif sekaligus, tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. Semua
@@ -153,13 +175,6 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
 async function onDebetChange(r: PpnRow, value: string) {
   const debet = parseNum(value)
   await patchRow(r, { debet, ...computeTagFormula(parseTagList(r.tags), debet) })
-}
-
-async function onMasaKredit(r: PpnRow, part: 'y' | 'm', value: string) {
-  const [curY, curM] = (r.masaKredit || '').split('-')
-  const y = part === 'y' ? value : (curY || String(today.getFullYear()))
-  const m = part === 'm' ? value : (curM || '')
-  await patchRow(r, { masaKredit: y && m ? `${y}-${String(m).padStart(2, '0')}` : '' })
 }
 
 async function addRow(groupId: string | null) {
@@ -285,11 +300,36 @@ function dupKey(r: Pick<PpnRow, 'groupId' | 'tanggal' | 'code' | 'description' |
   return `${r.groupId}|${r.tanggal}|${r.code}|${r.description}|${r.debet}|${r.kredit}`
 }
 
+// Kolom angka di tabel (index setelah kolom .no-export dibuang) — dipetakan ke
+// field aslinya biar cell Excel-nya angka beneran, bukan teks hasil toLocaleString
+// yang bisa kebaca beda-beda tergantung setting regional komputer yang buka.
+const COL_DEBET = 5
+const COL_KREDIT = 6
+const COL_DPP = 10
+const COL_PPH23 = 11
+const COL_FINAL = 12
+const COL_PPH21BP = 13
+
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
   if (!tables.length) { status.value = { type: 'err', msg: 'Belum ada tabel untuk diexport.' }; return }
-  await exportTables(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'List_Pajak')
+  const sectionsList = visibleSections.value
+  await exportTablesColored(tables.map((t, ti) => ({
+    table: t,
+    sheetName: t.dataset.sheet || 'Sheet',
+    numericCell: (rowIdx: number, colIdx: number) => {
+      const r = sectionsList[ti]?.rows[rowIdx]
+      if (!r) return null
+      if (colIdx === COL_DEBET) return r.debet || null
+      if (colIdx === COL_KREDIT) return r.kredit || null
+      if (colIdx === COL_DPP) return r.dpp
+      if (colIdx === COL_PPH23) return r.pph23
+      if (colIdx === COL_FINAL) return r.pph23_4a2
+      if (colIdx === COL_PPH21BP) return r.pph21bp
+      return null
+    }
+  })), 'List_Pajak')
 }
 
 function subtotal(list: PpnRow[], key: keyof PpnRow) {
@@ -375,9 +415,10 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               <th class="no-export"><input type="checkbox" :checked="sec.rows.length > 0 && sec.rows.every(r => selectedIds.has(r.id))" @change="multi.toggleAll(sec.rows.map(r => r.id))" /></th>
               <th>Tanggal</th><th>No Bank</th><th>Store</th><th>Description</th><th>Tags</th>
               <th class="num">Debet</th><th class="num">Kredit</th>
-              <th>NPWP</th><th>No Invoice</th>
+              <th>No. NPWP</th><th>NPWP</th><th>No Invoice</th>
+              <th class="num">DPP</th>
               <th class="num">PPh 23</th><th class="num">Final</th><th class="num">PPh 21 BP</th>
-              <th>Nomor Bukti Potong</th><th>Masa Kredit</th><th>Catatan</th>
+              <th>Catatan</th>
             </tr>
           </thead>
           <tbody>
@@ -410,6 +451,13 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               </td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.debet, true)" :disabled="isLocked(r.tanggal)" @change="onDebetChange(r, ($event.target as HTMLInputElement).value)" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.kredit, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { kredit: parseNum(($event.target as HTMLInputElement).value) })" /></td>
+              <td>
+                <input
+                  class="cell-input" style="min-width:150px;" :value="npwpOf(r.npwpId)?.noNpwp"
+                  :disabled="isLocked(r.tanggal)" placeholder="Ketik No. NPWP..."
+                  @change="onNpwpNumberChange(r, ($event.target as HTMLInputElement).value)"
+                />
+              </td>
               <td style="min-width:220px;">
                 <SearchSelect
                   :model-value="r.npwpId || ''"
@@ -420,21 +468,10 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
                 />
               </td>
               <td><input class="cell-input" :value="r.noInvoice" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { noInvoice: ($event.target as HTMLInputElement).value })" /></td>
+              <td class="num"><input class="cell-input" :value="fmtNum(r.dpp, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { dpp: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph23, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph23: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph23_4a2, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph23_4a2: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph21bp, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph21bp: parseNum(($event.target as HTMLInputElement).value) })" /></td>
-              <td><input class="cell-input" :value="r.lampiranFakturPajak" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { lampiranFakturPajak: ($event.target as HTMLInputElement).value })" /></td>
-              <td>
-                <div style="display:flex;gap:2px;">
-                  <select style="width:52px;" :value="(r.masaKredit || '').split('-')[1] || ''" :disabled="isLocked(r.tanggal)" @change="onMasaKredit(r, 'm', ($event.target as HTMLSelectElement).value)">
-                    <option value="">-</option>
-                    <option v-for="(m, i) in MONTH_NAMES" :key="m" :value="String(i + 1).padStart(2, '0')">{{ String(i + 1).padStart(2, '0') }}</option>
-                  </select>
-                  <select style="width:56px;" :value="(r.masaKredit || '').split('-')[0] || String(today.getFullYear())" :disabled="isLocked(r.tanggal)" @change="onMasaKredit(r, 'y', ($event.target as HTMLSelectElement).value)">
-                    <option v-for="y in kreditYears" :key="y" :value="String(y)">{{ String(y).slice(-2) }}</option>
-                  </select>
-                </div>
-              </td>
               <td><input class="cell-input" :value="r.note" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { note: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="subtotal-row">
@@ -442,11 +479,12 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               <td colspan="5">Subtotal {{ sec.nama }} ({{ sec.rows.length }} baris)</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'debet')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'kredit')) }}</td>
-              <td colspan="2"></td>
+              <td colspan="3"></td>
+              <td class="num">{{ fmtRp(subtotal(sec.rows, 'dpp')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'pph23')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'pph23_4a2')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'pph21bp')) }}</td>
-              <td colspan="3"></td>
+              <td></td>
             </tr>
           </tbody>
         </table>

@@ -17,7 +17,7 @@ type PpnRow = {
   id: string; groupId: string | null; tanggal: string; code: string | null
   description: string | null; tags: string | null
   npwpId: string | null; noInvoice: string | null; tanggalFp: string | null
-  dpp: number | null; ppn: number | null; masaKredit: string | null
+  dpp: number | null; ppn: number | null; masaKredit: string | null; note: string | null
 }
 type Npwp = { id: string; noNpwp: string; namaNpwp: string }
 
@@ -200,7 +200,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               <th>NPWP</th><th>Nama Penerbit</th>
               <th>No Faktur Pajak</th><th>Tanggal FP</th>
               <th class="num">DPP</th><th class="num">PPN</th>
-              <th>Masa Kredit</th>
+              <th>Masa Kredit</th><th>Keterangan</th>
             </tr>
           </thead>
           <tbody>
@@ -241,11 +241,13 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                   </select>
                 </div>
               </td>
+              <td><input class="cell-input" style="min-width:160px;" :value="r.note" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { note: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="grand-total-row">
               <td colspan="9" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'dpp')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'ppn')) }}</td>
+              <td></td>
               <td></td>
             </tr>
           </tbody>
