@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { daysInMonth, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
+import { daysInMonth, defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
@@ -13,8 +13,9 @@ const stores = ref<Store[]>([])
 const entries = ref<Entry[]>([])
 
 const today = new Date()
-const filterMonth = ref(today.getMonth() + 1)
-const filterYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterMonth = ref(defMonth)
+const filterYear = ref(defYear)
 const filterGroup = ref<string>('') // '' = semua grup
 
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)

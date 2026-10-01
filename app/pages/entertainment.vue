@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, fmtNum, fmtRp, parseNum, lightenColor } from '~/utils/format'
+import { autoGrow, defaultPeriod, fmtNum, fmtRp, parseNum, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
@@ -16,10 +16,11 @@ type EntRow = {
 
 const rows = ref<EntRow[]>([])
 const today = new Date()
-const filterFromMonth = ref(today.getMonth() + 1)
-const filterFromYear = ref(today.getFullYear())
-const filterToMonth = ref(today.getMonth() + 1)
-const filterToYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterFromMonth = ref(defMonth)
+const filterFromYear = ref(defYear)
+const filterToMonth = ref(defMonth)
+const filterToYear = ref(defYear)
 const filterGroup = ref('')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, parseTagList, lightenColor } from '~/utils/format'
+import { autoGrow, defaultPeriod, parseTagList, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -25,8 +25,9 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 function firstOfMonth(y: number, m: number) { return `${y}-${pad2(m)}-01` }
 function lastOfMonth(y: number, m: number) { return `${y}-${pad2(m)}-${pad2(new Date(y, m, 0).getDate())}` }
 
-const filterDateFrom = ref(firstOfMonth(today.getFullYear(), today.getMonth() + 1))
-const filterDateTo = ref(lastOfMonth(today.getFullYear(), today.getMonth() + 1))
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterDateFrom = ref(firstOfMonth(defYear, defMonth))
+const filterDateTo = ref(lastOfMonth(defYear, defMonth))
 const filterPic = ref('') // '' = semua PIC
 const filterBank = ref('') // '' = semua bank
 const filterAccount = ref('') // '' = belum pilih rekening — datanya sengaja gak ditampilin dulu
@@ -530,6 +531,7 @@ async function onExport() {
       style="position:fixed;z-index:50;padding:8px;width:170px;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.18);"
       :style="{ top: tagMenu.y + 'px', left: tagMenu.x + 'px' }"
       @click.stop
+      @mouseleave="closeTagMenu"
     >
       <div v-if="!tags.length" class="hint">Belum ada tag. Tambahin dulu di Master Data.</div>
       <label v-for="tg in tags" :key="tg.id" style="display:flex;align-items:center;gap:6px;padding:4px 2px;font-size:12.5px;cursor:pointer;">

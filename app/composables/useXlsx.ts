@@ -102,20 +102,44 @@ export function useXlsx() {
    *  fallback ke warna `<tr>`-nya kalau cell-nya transparan (pola lama, dipakai halaman
    *  yang warnain satu baris penuh, mis. List Pajak/Daftar Norminatif/List PM).
    *
-   *  `numericCell`, kalau dikasih, dipanggil per baris data (index 0-based, gak
-   *  termasuk header) & kolom buat nimpa cell itu jadi angka biner asli (bukan hasil
-   *  parse-ulang teks yang sudah diformat toLocaleString) — soalnya heuristik parser
-   *  angka bawaan table_to_sheet gak paham format ribuan gaya Indonesia ("1.900.000")
-   *  dan bisa salah baca. Return null/undefined buat biarin cell itu apa adanya. */
+   *  Warna dibaca dari tabel ASLI yang masih nempel di DOM (bukan dari clone-nya) karena
+   *  getComputedStyle butuh elemen yang beneran di-render buat bisa resolve CSS variable
+   *  (var(--red-bg) dsb) dengan benar — elemen hasil cloneNode yang lepas dari dokumen gak
+   *  bisa itu. Tapi kolom `.no-export` (checkbox, tombol hapus, dst) dibuang dulu SEBELUM
+   *  baca warnanya, dengan cara filter cell aslinya sendiri (bukan hitung index di clone
+   *  yang udah kehapus) — kalau enggak, index col-nya bakal geser begitu ada kolom
+   *  .no-export sebelum kolom yang diwarnain, dan warnanya nempel ke kolom yang salah.
+   *
+   *  `numericCell`/`textCell`, kalau dikasih, dipanggil per baris data (index 0-based,
+   *  gak termasuk header) & kolom buat nimpa cell itu jadi angka biner asli / teks
+   *  eksplisit (bukan hasil tebakan tipe dari table_to_sheet) — numericCell soalnya
+   *  heuristik angka bawaan table_to_sheet gak paham format ribuan gaya Indonesia
+   *  ("1.900.000") dan bisa salah baca; textCell soalnya teks kayak No. NPWP/No Invoice
+   *  ("02.162.888.8-053.000", "2024/09/001") bisa ke-tebak sebagai angka/tanggal padahal
+   *  bukan. Return null/undefined dari keduanya buat biarin cell itu apa adanya. */
   async function exportTablesColored(
-    items: { table: HTMLTableElement; sheetName: string; numericCell?: (dataRowIndex: number, colIndex: number) => number | null | undefined }[],
+    items: {
+      table: HTMLTableElement
+      sheetName: string
+      numericCell?: (dataRowIndex: number, colIndex: number) => number | null | undefined
+      textCell?: (dataRowIndex: number, colIndex: number) => string | null | undefined
+    }[],
     filenamePrefix: string
   ) {
     const XLSX = await libStyled()
     const wb = XLSX.utils.book_new()
     const used = new Set<string>()
-    for (const { table, sheetName, numericCell } of items) {
+    for (const { table, sheetName, numericCell, textCell } of items) {
+      // Dihitung dari tabel asli (bukan clone), dengan filter .no-export sendiri, biar
+      // urutan kolomnya PAS sama urutan akhir di sheet (clone yang udah dibuang .no-export-nya).
       const origRows = Array.from(table.querySelectorAll('tr'))
+      const rowCellColors = origRows.map((tr) => {
+        const rowArgb = cssColorToArgb(getComputedStyle(tr).backgroundColor)
+        return Array.from(tr.querySelectorAll('th,td'))
+          .filter(cell => !cell.classList.contains('no-export'))
+          .map(cell => cssColorToArgb(getComputedStyle(cell as HTMLElement).backgroundColor) || rowArgb)
+      })
+
       const clone = table.cloneNode(true) as HTMLTableElement
       clone.querySelectorAll('.no-export').forEach(el => el.remove())
       clone.querySelectorAll('input, select, textarea').forEach((el) => {
@@ -127,17 +151,17 @@ export function useXlsx() {
       const ws = XLSX.utils.table_to_sheet(clone)
       const cloneRows = Array.from(clone.querySelectorAll('tr'))
       cloneRows.forEach((tr, r) => {
-        const origRow = origRows[r]
-        const rowBg = origRow ? getComputedStyle(origRow).backgroundColor : ''
-        const origCells = origRow ? Array.from(origRow.querySelectorAll('th,td')) : []
         Array.from(tr.querySelectorAll('th,td')).forEach((_, c) => {
           const addr = XLSX.utils.encode_cell({ r, c })
-          if (numericCell && r > 0) {
-            const num = numericCell(r - 1, c)
+          if (r > 0) {
+            const num = numericCell?.(r - 1, c)
             if (num !== null && num !== undefined) ws[addr] = { t: 'n', v: num }
+            else {
+              const txt = textCell?.(r - 1, c)
+              if (txt !== null && txt !== undefined) ws[addr] = { t: 's', v: txt }
+            }
           }
-          const cellBg = origCells[c] ? getComputedStyle(origCells[c] as HTMLElement).backgroundColor : ''
-          const argb = cssColorToArgb(cellBg) || cssColorToArgb(rowBg)
+          const argb = rowCellColors[r]?.[c]
           if (!argb) return
           if (!ws[addr]) ws[addr] = { t: 's', v: '' }
           ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: argb }, bgColor: { rgb: argb } } }

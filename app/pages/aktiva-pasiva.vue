@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
+import { autoGrow, defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -21,10 +21,11 @@ const coas = ref<Coa[]>([])
 const lawan = ref<Lawan[]>([])
 
 const today = new Date()
-const filterFromMonth = ref(today.getMonth() + 1)
-const filterFromYear = ref(today.getFullYear())
-const filterToMonth = ref(today.getMonth() + 1)
-const filterToYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterFromMonth = ref(defMonth)
+const filterFromYear = ref(defYear)
+const filterToMonth = ref(defMonth)
+const filterToYear = ref(defYear)
 const filterGroup = ref('')
 const filterCoa = ref('')
 const filterNoLawan = ref(false)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, autoGrow, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList, lightenColor } from '~/utils/format'
+import { MONTH_NAMES, autoGrow, defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList, lightenColor } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -24,10 +24,11 @@ const npwps = ref<Npwp[]>([])
 const tags = ref<Tag[]>([])
 
 const today = new Date()
-const filterFromMonth = ref(today.getMonth() + 1)
-const filterFromYear = ref(today.getFullYear())
-const filterToMonth = ref(today.getMonth() + 1)
-const filterToYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterFromMonth = ref(defMonth)
+const filterFromYear = ref(defYear)
+const filterToMonth = ref(defMonth)
+const filterToYear = ref(defYear)
 const filterGroup = ref('')
 const filterMasaKredit = ref('')
 const filterTag = ref('')
@@ -87,13 +88,21 @@ function matchesSearch(r: PpnRow) {
     .some(v => (v || '').toLowerCase().includes(q))
 }
 
+// Tag "PM" dikhususkan buat List PM — kalau sendirian (gak dibarengin tag pajak
+// beneran kayak PPH 23/21 BP/dst), baris itu disembunyiin dari List Pajak.
+const REAL_PAJAK_TAGS = ['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final']
+function isPmOnly(r: PpnRow) {
+  const list = parseTagList(r.tags)
+  return list.includes('PM') && !list.some(t => REAL_PAJAK_TAGS.includes(t))
+}
+
 const visibleSections = computed(() =>
   sections.value
     .filter(s => !filterGroup.value || (s.id || '') === filterGroup.value)
     .map(s => ({
       ...s,
       rows: rows.value.filter(r =>
-        (r.groupId || '') === (s.id || '') && inPeriod(r) &&
+        (r.groupId || '') === (s.id || '') && inPeriod(r) && !isPmOnly(r) &&
         (!filterMasaKredit.value || r.masaKredit === filterMasaKredit.value) &&
         (!filterTag.value || parseTagList(r.tags).includes(filterTag.value)) &&
         matchesSearch(r)
@@ -102,9 +111,9 @@ const visibleSections = computed(() =>
     .filter(s => s.rows.length)
 )
 
-// -- ringkasan masa kredit --
+// -- ringkasan masa kredit -- (rows PM-only ikut disaring sama kayak visibleSections)
 const masaKreditOptions = computed(() =>
-  [...new Set(rows.value.map(r => r.masaKredit).filter(Boolean) as string[])].sort()
+  [...new Set(rows.value.filter(r => !isPmOnly(r)).map(r => r.masaKredit).filter(Boolean) as string[])].sort()
 )
 function masaKreditLabel(mk: string | null) {
   if (!mk) return ''
@@ -114,7 +123,7 @@ function masaKreditLabel(mk: string | null) {
 }
 const masaKreditSummary = computed(() => {
   if (!filterMasaKredit.value) return null
-  const sel = rows.value.filter(r => r.masaKredit === filterMasaKredit.value)
+  const sel = rows.value.filter(r => !isPmOnly(r) && r.masaKredit === filterMasaKredit.value)
   const s = (k: keyof PpnRow) => sel.reduce((a, r) => a + (Number(r[k]) || 0), 0)
   return { count: sel.length, debet: s('debet'), pph23: s('pph23'), final: s('pph23_4a2'), pph21bp: s('pph21bp') }
 })
@@ -171,10 +180,11 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
 }
 
 /** Ubah Debet manual -> recompute pajak dari tag yang lagi aktif di baris itu, sama
- *  kayak toggleTag() di atas, biar PPh 23/Final/PPh 21 BP selalu ngikutin Debet terbaru. */
+ *  kayak toggleTag() di atas, biar PPh 23/Final/PPh 21 BP selalu ngikutin Debet terbaru.
+ *  DPP juga ikut disamain sama Debet (tetap bisa diedit manual belakangan). */
 async function onDebetChange(r: PpnRow, value: string) {
   const debet = parseNum(value)
-  await patchRow(r, { debet, ...computeTagFormula(parseTagList(r.tags), debet) })
+  await patchRow(r, { debet, dpp: debet, ...computeTagFormula(parseTagList(r.tags), debet) })
 }
 
 async function addRow(groupId: string | null) {
@@ -273,6 +283,7 @@ async function onUpload(evt: Event) {
         description: String(at('description') || '').trim(),
         tags: tag,
         debet,
+        dpp: debet,
         kredit: parseSheetNumber(at('kredit')),
         ...computeTagFormula(tag ? [tag] : [], debet)
       }
@@ -305,6 +316,8 @@ function dupKey(r: Pick<PpnRow, 'groupId' | 'tanggal' | 'code' | 'description' |
 // yang bisa kebaca beda-beda tergantung setting regional komputer yang buka.
 const COL_DEBET = 5
 const COL_KREDIT = 6
+const COL_NO_NPWP = 7
+const COL_NO_INVOICE = 9
 const COL_DPP = 10
 const COL_PPH23 = 11
 const COL_FINAL = 12
@@ -327,6 +340,16 @@ async function onExport() {
       if (colIdx === COL_PPH23) return r.pph23
       if (colIdx === COL_FINAL) return r.pph23_4a2
       if (colIdx === COL_PPH21BP) return r.pph21bp
+      return null
+    },
+    // No. NPWP & No Invoice dipaksa jadi cell teks eksplisit — isinya kayak
+    // "02.162.888.8-053.000" atau "2024/09/001" gampang ke-tebak table_to_sheet
+    // sebagai angka/tanggal, padahal harus tetap teks apa adanya.
+    textCell: (rowIdx: number, colIdx: number) => {
+      const r = sectionsList[ti]?.rows[rowIdx]
+      if (!r) return null
+      if (colIdx === COL_NO_NPWP) return npwpOf(r.npwpId)?.noNpwp || null
+      if (colIdx === COL_NO_INVOICE) return r.noInvoice || null
       return null
     }
   })), 'List_Pajak')

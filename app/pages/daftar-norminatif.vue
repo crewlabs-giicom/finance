@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtRp, formatDateShort, lightenColor, parseTagList } from '~/utils/format'
+import { defaultPeriod, fmtRp, formatDateShort, lightenColor, parseTagList } from '~/utils/format'
 
 /**
  * Daftar Norminatif adalah tampilan turunan dari List Pajak — tidak punya tabel
@@ -26,10 +26,11 @@ const rows = ref<PpnRow[]>([])
 const npwps = ref<Npwp[]>([])
 
 const today = new Date()
-const filterFromMonth = ref(today.getMonth() + 1)
-const filterFromYear = ref(today.getFullYear())
-const filterToMonth = ref(today.getMonth() + 1)
-const filterToYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterFromMonth = ref(defMonth)
+const filterFromYear = ref(defYear)
+const filterToMonth = ref(defMonth)
+const filterToYear = ref(defYear)
 const filterGroup = ref('')
 const filterJenis = ref<'all' | 'pph23' | 'pph21bp'>('all')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)

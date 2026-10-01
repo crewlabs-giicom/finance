@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, fmtNum, fmtRp, formatDateShort, lightenColor, parseNum, parseTagList } from '~/utils/format'
+import { MONTH_NAMES, defaultPeriod, fmtNum, fmtRp, formatDateShort, lightenColor, parseNum, parseTagList } from '~/utils/format'
 
 /**
  * List PM adalah tampilan turunan dari List Pajak — tidak punya tabel sendiri.
@@ -25,10 +25,11 @@ const rows = ref<PpnRow[]>([])
 const npwps = ref<Npwp[]>([])
 
 const today = new Date()
-const filterFromMonth = ref(today.getMonth() + 1)
-const filterFromYear = ref(today.getFullYear())
-const filterToMonth = ref(today.getMonth() + 1)
-const filterToYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterFromMonth = ref(defMonth)
+const filterFromYear = ref(defYear)
+const filterToMonth = ref(defMonth)
+const filterToYear = ref(defYear)
 const filterGroup = ref('')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 

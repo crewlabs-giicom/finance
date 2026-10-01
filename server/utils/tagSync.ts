@@ -65,12 +65,12 @@ export async function syncTagDerivedRows(txnId: string) {
     const formula = computeTagFormula(tagList, amount)
     if (existingPpn) {
       await db.update(ppnRows).set({
-        tanggal: t.tanggal, description: desc, debet: amount, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula
+        tanggal: t.tanggal, description: desc, debet: amount, dpp: amount, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula
       }).where(eq(ppnRows.id, existingPpn.id))
     } else {
       await db.insert(ppnRows).values({
         id: genId('ppn'), sourceTxnId: txnId, groupId, tanggal: t.tanggal, code: t.noBankManual || '',
-        description: desc, store: '', tags: t.tag || '', debet: amount, kredit: 0, note: '', ...formula
+        description: desc, store: '', tags: t.tag || '', debet: amount, dpp: amount, kredit: 0, note: '', ...formula
       })
     }
   } else if (existingPpn) {

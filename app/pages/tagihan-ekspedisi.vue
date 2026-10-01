@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
+import { defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -20,8 +20,9 @@ const gudang = ref<Gudang[]>([])
 const finance = ref<Finance[]>([])
 
 const today = new Date()
-const filterMonth = ref(today.getMonth() + 1)
-const filterYear = ref(today.getFullYear())
+const { year: defYear, month: defMonth } = defaultPeriod(today)
+const filterMonth = ref(defMonth)
+const filterYear = ref(defYear)
 const filterStatus = ref<'all' | Status>('all')
 const gudangStatus = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 const financeStatus = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)

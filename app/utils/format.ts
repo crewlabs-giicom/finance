@@ -118,3 +118,16 @@ export function daysInMonth(year: number, month: number): number {
 export function ymOf(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 7) : ''
 }
+
+/** Periode default buat filter tanggal/bulan di awal buka halaman. 10 hari pertama
+ *  tiap bulan masih dianggap "bulan kemarin" — ngasih waktu buat nutup data bulan
+ *  lalu dulu sebelum filter default-nya otomatis geser ke bulan baru. */
+export function defaultPeriod(d: Date = new Date()): { year: number; month: number } {
+  let year = d.getFullYear()
+  let month = d.getMonth() + 1
+  if (d.getDate() <= 10) {
+    month -= 1
+    if (month < 1) { month = 12; year -= 1 }
+  }
+  return { year, month }
+}
