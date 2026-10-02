@@ -138,9 +138,8 @@ async function onExport() {
   await exportTablesColored(tables.map((t, ti) => ({
     table: t,
     sheetName: t.dataset.sheet || 'Sheet',
-    // Kolom 0 = Tanggal (biarin teks). Sisanya berulang per toko, 3 kolom
-    // (Debet, Kredit, Saldo) — ditulis sebagai angka biner asli biar gak ada
-    // separator ribuan yang bisa kebaca beda tergantung setting regional Excel.
+    // Kolom per toko (Debet/Kredit/Saldo) ditulis sebagai angka biner asli biar
+    // gak ada separator ribuan yang bisa kebaca beda tergantung setting regional Excel.
     numericCell: (rowIdx: number, colIdx: number) => {
       const sec = sectionsList[ti]
       const iso = dayList.value[rowIdx]
@@ -152,6 +151,16 @@ async function onExport() {
       if (part === 0) return entryOf(st.id, iso)?.debet || null
       if (part === 1) return entryOf(st.id, iso)?.kredit || null
       return saldoGrid.value.get(`${st.id}|${iso}`) || 0
+    },
+    // Kolom Tanggal (0) dipaksa jadi teks "DD/MM/YYYY" eksplisit — kalau dibiarin,
+    // table_to_sheet nebak itu tanggal beneran terus Excel nampilinnya pakai format
+    // tanggal bawaan komputer yang buka (bisa kebalik jadi MM/DD/YYYY).
+    textCell: (rowIdx: number, colIdx: number) => {
+      if (colIdx !== 0) return null
+      const iso = dayList.value[rowIdx]
+      if (!iso) return null
+      const [y, m, d] = iso.split('-')
+      return `${d}/${m}/${y}`
     }
   })), 'Rincian_MP')
 }

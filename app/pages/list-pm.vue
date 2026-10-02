@@ -58,7 +58,6 @@ function matchesTag(r: PpnRow) {
 function npwpOf(id: string | null) {
   return npwps.value.find(n => n.id === id)
 }
-const npwpOptions = computed(() => npwps.value.map(n => ({ id: n.id, label: `${n.noNpwp} - ${n.namaNpwp}` })))
 
 const visibleSections = computed(() =>
   sections.value
@@ -166,7 +165,9 @@ async function applyBulkMasaKredit() {
 
 // Kolom di tabel (index setelah kolom .no-export dibuang).
 const COL_NO_NPWP = 4
-const COL_NO_FAKTUR_PAJAK = 7
+const COL_NO_FAKTUR_PAJAK = 6
+const COL_DPP = 8
+const COL_PPN = 9
 
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
@@ -176,6 +177,15 @@ async function onExport() {
   await exportTablesColored(tables.map((t, ti) => ({
     table: t,
     sheetName: t.dataset.sheet || 'Sheet',
+    // DPP & PPN ditulis sebagai angka biner asli biar gak ada separator ribuan
+    // yang bisa kebaca beda tergantung setting regional Excel.
+    numericCell: (rowIdx: number, colIdx: number) => {
+      const r = sectionsList[ti]?.rows[rowIdx]
+      if (!r) return null
+      if (colIdx === COL_DPP) return r.dpp
+      if (colIdx === COL_PPN) return r.ppn
+      return null
+    },
     // No. NPWP & No Faktur Pajak dipaksa jadi teks eksplisit — gampang ke-tebak
     // table_to_sheet sebagai angka/tanggal padahal harus tetap teks apa adanya.
     textCell: (rowIdx: number, colIdx: number) => {
@@ -259,7 +269,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               </th>
               <th>No</th>
               <th>Tanggal Bank</th><th>No Bank</th><th>Keterangan</th>
-              <th>No. NPWP</th><th>NPWP</th><th>Nama Penerbit</th>
+              <th>No. NPWP</th><th>Nama Penerbit</th>
               <th>No Faktur Pajak</th><th>Tanggal FP</th>
               <th class="num">DPP</th><th class="num">PPN</th>
               <th>Masa Kredit</th><th>Keterangan</th>
@@ -277,15 +287,6 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                   class="cell-input" style="min-width:150px;" :value="npwpOf(r.npwpId)?.noNpwp"
                   :disabled="isLocked(r.tanggal)" placeholder="Ketik No. NPWP..."
                   @change="onNpwpNumberChange(r, ($event.target as HTMLInputElement).value)"
-                />
-              </td>
-              <td style="min-width:220px;">
-                <SearchSelect
-                  :model-value="r.npwpId || ''"
-                  :options="npwpOptions"
-                  :disabled="isLocked(r.tanggal)"
-                  placeholder="-"
-                  @update:model-value="(v) => patchRow(r, { npwpId: v || null })"
                 />
               </td>
               <td>{{ npwpOf(r.npwpId)?.namaNpwp || '-' }}</td>
@@ -310,7 +311,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               <td><input class="cell-input" style="min-width:160px;" :value="r.note" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { note: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="grand-total-row">
-              <td colspan="10" style="text-align:right;">TOTAL</td>
+              <td colspan="8" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'dpp')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'ppn')) }}</td>
               <td></td>
