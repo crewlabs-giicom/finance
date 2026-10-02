@@ -11,7 +11,7 @@ import { MONTH_NAMES, defaultPeriod, fmtNum, fmtRp, formatDateShort, lightenColo
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
-const { exportTables } = useXlsx()
+const { exportTablesColored } = useXlsx()
 
 type PpnRow = {
   id: string; groupId: string | null; tanggal: string; code: string | null
@@ -92,21 +92,31 @@ async function onMasaKredit(r: PpnRow, part: 'y' | 'm', value: string) {
   await patchRow(r, { masaKredit: y && m ? `${y}-${String(m).padStart(2, '0')}` : '' })
 }
 
-/** Pilihan "+ Tambah NPWP Baru" di dropdown, sama kayak Daftar Norminatif. */
-async function onNpwpCreate(r: PpnRow) {
-  const noNpwp = prompt('No. NPWP baru:')?.trim()
-  if (!noNpwp) { await loadAll(); return }
-  const namaNpwp = prompt('Nama NPWP:')?.trim()
-  if (!namaNpwp) { await loadAll(); return }
+/** Kolom "No. NPWP" bisa diketik bebas — gak perlu buka Master Data dulu. Kalau
+ *  nomornya udah ada di master, tinggal di-link; kalau belum, baris master baru
+ *  langsung dibikin otomatis (Nama NPWP-nya sementara disamain sama nomornya,
+ *  bisa diganti belakangan lewat Master Data). Pola sama persis kayak List Pajak. */
+async function onNpwpNumberChange(r: PpnRow, value: string) {
+  const noNpwp = value.trim()
+  if (!noNpwp) { await patchRow(r, { npwpId: null }); return }
+
+  const existing = npwps.value.find(n => n.noNpwp.trim().toLowerCase() === noNpwp.toLowerCase())
+  if (existing) { await patchRow(r, { npwpId: existing.id }); return }
 
   try {
-    const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp } })
-    npwps.value = await api<Npwp[]>('/api/master/npwp')
+    const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp: noNpwp } })
+    npwps.value.push(created)
     await patchRow(r, { npwpId: created.id })
   } catch (e: any) {
     status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal tambah NPWP.' }
     await loadAll()
   }
+}
+
+/** DPP berubah -> PPN otomatis 11% dari DPP (tetap bisa diedit manual belakangan). */
+async function onDppChange(r: PpnRow, value: string) {
+  const dpp = parseNum(value)
+  await patchRow(r, { dpp, ppn: Math.round(dpp * 0.11) })
 }
 
 const multi = useMultiSelect()
@@ -131,11 +141,51 @@ async function deleteSelected() {
     : { type: 'ok', msg: `${ok} baris dihapus.` }
 }
 
+// -- update Masa Kredit rame-rame buat baris yang lagi dicentang --
+const bulkMasaKreditMonth = ref('')
+const bulkMasaKreditYear = ref(String(today.getFullYear()))
+async function applyBulkMasaKredit() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  if (!bulkMasaKreditMonth.value) { status.value = { type: 'err', msg: 'Pilih bulan Masa Kredit dulu.' }; return }
+  const masaKredit = `${bulkMasaKreditYear.value}-${bulkMasaKreditMonth.value}`
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      await api(`/api/ppn/${id}`, { method: 'PATCH', body: { masaKredit } })
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  status.value = fail
+    ? { type: 'err', msg: `${ok} baris di-update, ${fail} gagal (kemungkinan periode terkunci).` }
+    : { type: 'ok', msg: `${ok} baris Masa Kredit-nya di-update ke ${MONTH_NAMES[+bulkMasaKreditMonth.value - 1]} ${bulkMasaKreditYear.value}.` }
+}
+
+// Kolom di tabel (index setelah kolom .no-export dibuang).
+const COL_NO_NPWP = 4
+const COL_NO_FAKTUR_PAJAK = 7
+
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
   if (!tables.length) { status.value = { type: 'err', msg: 'Belum ada tabel untuk diexport.' }; return }
-  await exportTables(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'List_PM')
+  const sectionsList = visibleSections.value
+  await exportTablesColored(tables.map((t, ti) => ({
+    table: t,
+    sheetName: t.dataset.sheet || 'Sheet',
+    // No. NPWP & No Faktur Pajak dipaksa jadi teks eksplisit — gampang ke-tebak
+    // table_to_sheet sebagai angka/tanggal padahal harus tetap teks apa adanya.
+    textCell: (rowIdx: number, colIdx: number) => {
+      const r = sectionsList[ti]?.rows[rowIdx]
+      if (!r) return null
+      if (colIdx === COL_NO_NPWP) return npwpOf(r.npwpId)?.noNpwp || null
+      if (colIdx === COL_NO_FAKTUR_PAJAK) return r.noInvoice || null
+      return null
+    }
+  })), 'List_PM')
 }
 
 function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
@@ -181,7 +231,18 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
       <div class="group-head">
         <span class="group-dot" :style="{ background: sec.warna }" />
         {{ sec.nama }}
-        <button v-if="selectedIds.size" class="btn danger no-export" style="margin-left:auto;" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
+        <div v-if="selectedIds.size" class="no-export" style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+          <span class="gm-label">Set Masa Kredit ({{ selectedIds.size }} terpilih):</span>
+          <select v-model="bulkMasaKreditMonth" style="width:100px;">
+            <option value="">- Bulan -</option>
+            <option v-for="(m, mi) in MONTH_NAMES" :key="m" :value="String(mi + 1).padStart(2, '0')">{{ m }}</option>
+          </select>
+          <select v-model="bulkMasaKreditYear" style="width:75px;">
+            <option v-for="y in kreditYears" :key="y" :value="String(y)">{{ y }}</option>
+          </select>
+          <button class="btn secondary" @click="applyBulkMasaKredit">Terapkan</button>
+          <button class="btn danger" @click="deleteSelected">🗑 Hapus Terpilih</button>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -198,7 +259,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               </th>
               <th>No</th>
               <th>Tanggal Bank</th><th>No Bank</th><th>Keterangan</th>
-              <th>NPWP</th><th>Nama Penerbit</th>
+              <th>No. NPWP</th><th>NPWP</th><th>Nama Penerbit</th>
               <th>No Faktur Pajak</th><th>Tanggal FP</th>
               <th class="num">DPP</th><th class="num">PPN</th>
               <th>Masa Kredit</th><th>Keterangan</th>
@@ -211,16 +272,20 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               <td>{{ formatDateShort(r.tanggal) }}</td>
               <td><input class="cell-input" style="min-width:110px;" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
               <td style="min-width:200px;">{{ r.description }}</td>
+              <td>
+                <input
+                  class="cell-input" style="min-width:150px;" :value="npwpOf(r.npwpId)?.noNpwp"
+                  :disabled="isLocked(r.tanggal)" placeholder="Ketik No. NPWP..."
+                  @change="onNpwpNumberChange(r, ($event.target as HTMLInputElement).value)"
+                />
+              </td>
               <td style="min-width:220px;">
                 <SearchSelect
                   :model-value="r.npwpId || ''"
                   :options="npwpOptions"
                   :disabled="isLocked(r.tanggal)"
-                  placeholder="- pilih NPWP -"
-                  allow-create
-                  create-label="+ Tambah NPWP Baru…"
+                  placeholder="-"
                   @update:model-value="(v) => patchRow(r, { npwpId: v || null })"
-                  @create="onNpwpCreate(r)"
                 />
               </td>
               <td>{{ npwpOf(r.npwpId)?.namaNpwp || '-' }}</td>
@@ -229,7 +294,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                 <input type="date" class="cell-input" :value="r.tanggalFp" :disabled="isLocked(r.tanggal)"
                   @change="patchRow(r, { tanggalFp: ($event.target as HTMLInputElement).value })" />
               </td>
-              <td class="num"><input class="cell-input" :value="fmtNum(r.dpp, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { dpp: parseNum(($event.target as HTMLInputElement).value) })" /></td>
+              <td class="num"><input class="cell-input" :value="fmtNum(r.dpp, true)" :disabled="isLocked(r.tanggal)" @change="onDppChange(r, ($event.target as HTMLInputElement).value)" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.ppn, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { ppn: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td>
                 <div style="display:flex;gap:2px;">
@@ -245,7 +310,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               <td><input class="cell-input" style="min-width:160px;" :value="r.note" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { note: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="grand-total-row">
-              <td colspan="9" style="text-align:right;">TOTAL</td>
+              <td colspan="10" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'dpp')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'ppn')) }}</td>
               <td></td>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { daysInMonth, defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum, lightenColor } from '~/utils/format'
+import { daysInMonth, defaultPeriod, fmtNum, formatDateShort, parseNum, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel } = usePeriodLock()
-const { exportTables } = useXlsx()
+const { exportTablesColored } = useXlsx()
 
 type Store = { id: string; groupId: string | null; nama: string; platform: string | null; saldoAwal: number }
 type Entry = { id: string; storeId: string; tanggal: string; debet: number; kredit: number }
@@ -134,7 +134,26 @@ const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
   if (!tables.length) { status.value = { type: 'err', msg: 'Belum ada tabel untuk diexport.' }; return }
-  await exportTables(tables.map(t => ({ table: t, sheetName: t.dataset.sheet || 'Sheet' })), 'Rincian_MP')
+  const sectionsList = visibleSections.value
+  await exportTablesColored(tables.map((t, ti) => ({
+    table: t,
+    sheetName: t.dataset.sheet || 'Sheet',
+    // Kolom 0 = Tanggal (biarin teks). Sisanya berulang per toko, 3 kolom
+    // (Debet, Kredit, Saldo) — ditulis sebagai angka biner asli biar gak ada
+    // separator ribuan yang bisa kebaca beda tergantung setting regional Excel.
+    numericCell: (rowIdx: number, colIdx: number) => {
+      const sec = sectionsList[ti]
+      const iso = dayList.value[rowIdx]
+      if (!sec || !iso || colIdx === 0) return null
+      const rel = colIdx - 1
+      const st = sec.stores[Math.floor(rel / 3)]
+      if (!st) return null
+      const part = rel % 3
+      if (part === 0) return entryOf(st.id, iso)?.debet || null
+      if (part === 1) return entryOf(st.id, iso)?.kredit || null
+      return saldoGrid.value.get(`${st.id}|${iso}`) || 0
+    }
+  })), 'Rincian_MP')
 }
 </script>
 
@@ -179,13 +198,16 @@ async function onExport() {
           <thead :style="{ '--group-thead-bg': lightenColor(sec.warna) }">
             <tr :ref="measureHeadRow1">
               <th rowspan="2" style="z-index:2;">Tanggal</th>
-              <th v-for="st in sec.stores" :key="st.id" colspan="3" style="text-align:center;z-index:2;">
+              <th
+                v-for="(st, i) in sec.stores" :key="st.id" colspan="3"
+                style="text-align:center;z-index:2;" :class="{ 'store-divider': i > 0 }"
+              >
                 {{ st.platform ? st.platform + ' · ' : '' }}{{ st.nama }}
               </th>
             </tr>
             <tr>
-              <template v-for="st in sec.stores" :key="st.id">
-                <th class="num" :style="{ top: headRow1Height + 'px' }">Debet</th>
+              <template v-for="(st, i) in sec.stores" :key="st.id">
+                <th class="num" :class="{ 'store-divider': i > 0 }" :style="{ top: headRow1Height + 'px' }">Debet</th>
                 <th class="num" :style="{ top: headRow1Height + 'px' }">Kredit</th>
                 <th class="num" :style="{ top: headRow1Height + 'px' }">Saldo</th>
               </template>
@@ -194,8 +216,8 @@ async function onExport() {
           <tbody>
             <tr v-for="iso in dayList" :key="iso">
               <td>{{ formatDateShort(iso) }}</td>
-              <template v-for="st in sec.stores" :key="st.id">
-                <td class="num">
+              <template v-for="(st, i) in sec.stores" :key="st.id">
+                <td class="num" :class="{ 'store-divider': i > 0 }">
                   <input
                     class="cell-input"
                     :value="fmtNum(entryOf(st.id, iso)?.debet, true)"
@@ -213,7 +235,7 @@ async function onExport() {
                     @keyup.enter="($event.target as HTMLInputElement).blur()"
                   />
                 </td>
-                <td class="num">{{ fmtRp(saldoGrid.get(`${st.id}|${iso}`) || 0) }}</td>
+                <td class="num">{{ fmtNum(saldoGrid.get(`${st.id}|${iso}`) || 0) }}</td>
               </template>
             </tr>
           </tbody>
@@ -267,5 +289,10 @@ async function onExport() {
    baris header, sticky per-<th> tetap normal). */
 .table-wrap table.dense thead th {
   background: var(--group-thead-bg, var(--accent-light));
+}
+
+/* Garis pemisah antar toko (tiap toko = 3 kolom Debet/Kredit/Saldo). */
+.store-divider {
+  border-left: 2px solid var(--border);
 }
 </style>
