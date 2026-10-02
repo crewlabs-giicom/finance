@@ -111,12 +111,16 @@ export function useXlsx() {
    *  .no-export sebelum kolom yang diwarnain, dan warnanya nempel ke kolom yang salah.
    *
    *  `numericCell`/`textCell`, kalau dikasih, dipanggil per baris data (index 0-based,
-   *  gak termasuk header) & kolom buat nimpa cell itu jadi angka biner asli / teks
-   *  eksplisit (bukan hasil tebakan tipe dari table_to_sheet) — numericCell soalnya
-   *  heuristik angka bawaan table_to_sheet gak paham format ribuan gaya Indonesia
-   *  ("1.900.000") dan bisa salah baca; textCell soalnya teks kayak No. NPWP/No Invoice
-   *  ("02.162.888.8-053.000", "2024/09/001") bisa ke-tebak sebagai angka/tanggal padahal
-   *  bukan. Return null/undefined dari keduanya buat biarin cell itu apa adanya. */
+   *  gak termasuk SEMUA baris header — dihitung dari jumlah `<tr>` di dalam `<thead>`,
+   *  bukan ditebak "cuma 1 baris", soalnya Rincian MP misalnya punya 2 baris header
+   *  (nama toko + Debet/Kredit/Saldo); kalau cuma di-skip 1 baris, baris header ke-2
+   *  kehitung jadi baris data pertama dan seluruh data jadi geser) & kolom buat nimpa
+   *  cell itu jadi angka biner asli / teks eksplisit (bukan hasil tebakan tipe dari
+   *  table_to_sheet) — numericCell soalnya heuristik angka bawaan table_to_sheet gak
+   *  paham format ribuan gaya Indonesia ("1.900.000") dan bisa salah baca; textCell
+   *  soalnya teks kayak No. NPWP/No Invoice ("02.162.888.8-053.000", "2024/09/001")
+   *  bisa ke-tebak sebagai angka/tanggal padahal bukan. Return null/undefined dari
+   *  keduanya buat biarin cell itu apa adanya. */
   async function exportTablesColored(
     items: {
       table: HTMLTableElement
@@ -139,6 +143,7 @@ export function useXlsx() {
           .filter(cell => !cell.classList.contains('no-export'))
           .map(cell => cssColorToArgb(getComputedStyle(cell as HTMLElement).backgroundColor) || rowArgb)
       })
+      const headerRowCount = table.querySelectorAll('thead tr').length || 1
 
       const clone = table.cloneNode(true) as HTMLTableElement
       clone.querySelectorAll('.no-export').forEach(el => el.remove())
@@ -153,11 +158,12 @@ export function useXlsx() {
       cloneRows.forEach((tr, r) => {
         Array.from(tr.querySelectorAll('th,td')).forEach((_, c) => {
           const addr = XLSX.utils.encode_cell({ r, c })
-          if (r > 0) {
-            const num = numericCell?.(r - 1, c)
+          if (r >= headerRowCount) {
+            const dataRowIndex = r - headerRowCount
+            const num = numericCell?.(dataRowIndex, c)
             if (num !== null && num !== undefined) ws[addr] = { t: 'n', v: num }
             else {
-              const txt = textCell?.(r - 1, c)
+              const txt = textCell?.(dataRowIndex, c)
               if (txt !== null && txt !== undefined) ws[addr] = { t: 's', v: txt }
             }
           }
