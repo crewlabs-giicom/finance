@@ -31,6 +31,7 @@ const filterFromYear = ref(defYear)
 const filterToMonth = ref(defMonth)
 const filterToYear = ref(defYear)
 const filterGroup = ref('')
+const filterMasaKredit = ref('')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 
 const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
@@ -59,13 +60,24 @@ function npwpOf(id: string | null) {
   return npwps.value.find(n => n.id === id)
 }
 
+const masaKreditOptions = computed(() =>
+  [...new Set(rows.value.filter(matchesTag).map(r => r.masaKredit).filter(Boolean) as string[])].sort()
+)
+function masaKreditLabel(mk: string | null) {
+  if (!mk) return ''
+  const [y, m] = mk.split('-')
+  const mi = +m! - 1
+  return mi >= 0 && mi < 12 ? `${MONTH_NAMES[mi]} ${y}` : mk
+}
+
 const visibleSections = computed(() =>
   sections.value
     .filter(s => !filterGroup.value || (s.id || '') === filterGroup.value)
     .map(s => ({
       ...s,
       rows: rows.value
-        .filter(r => (r.groupId || '') === (s.id || '') && matchesTag(r) && inPeriod(r.tanggal))
+        .filter(r => (r.groupId || '') === (s.id || '') && matchesTag(r) && inPeriod(r.tanggal) &&
+          (!filterMasaKredit.value || r.masaKredit === filterMasaKredit.value))
         .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : 0))
     }))
     .filter(s => s.rows.length)
@@ -230,6 +242,11 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
       <select v-model="filterGroup">
         <option value="">Semua grup</option>
         <option v-for="s in sections" :key="s.id || 'none'" :value="s.id || ''">{{ s.nama }}</option>
+      </select>
+      <span class="gm-label" style="margin-left:10px;">Masa Kredit:</span>
+      <select v-model="filterMasaKredit">
+        <option value="">Semua Masa Kredit</option>
+        <option v-for="mk in masaKreditOptions" :key="mk" :value="mk">{{ masaKreditLabel(mk) }}</option>
       </select>
     </PeriodRangeFilter>
 

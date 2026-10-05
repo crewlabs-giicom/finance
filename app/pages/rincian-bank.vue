@@ -138,8 +138,8 @@ function rowColor(id: string) {
 /** Warna otomatis (merah Debet / hijau Kredit) cuma di cell "No Bank" — sisa baris
  * dibiarin putih. Warna manual (klik kanan) cuma di cell "Ket Transaksi". */
 function autoCellStyle(t: Txn) {
-  if (t.debet > 0) return 'background:var(--red-bg)'
-  if (t.kredit > 0) return 'background:var(--green-bg)'
+  if (t.debet > 0) return 'background:#d4223d'
+  if (t.kredit > 0) return 'background:#138a33'
   return ''
 }
 function manualCellStyle(t: Txn) {

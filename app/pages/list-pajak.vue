@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, autoGrow, defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList, lightenColor } from '~/utils/format'
+import { autoGrow, defaultPeriod, fmtNum, fmtRp, formatDateShort, parseNum, parseTagList, lightenColor } from '~/utils/format'
 import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -30,7 +30,6 @@ const filterFromYear = ref(defYear)
 const filterToMonth = ref(defMonth)
 const filterToYear = ref(defYear)
 const filterGroup = ref('')
-const filterMasaKredit = ref('')
 const filterTag = ref('')
 const filterSearch = ref('')
 const uploadGroup = ref('')
@@ -103,30 +102,12 @@ const visibleSections = computed(() =>
       ...s,
       rows: rows.value.filter(r =>
         (r.groupId || '') === (s.id || '') && inPeriod(r) && !isPmOnly(r) &&
-        (!filterMasaKredit.value || r.masaKredit === filterMasaKredit.value) &&
         (!filterTag.value || parseTagList(r.tags).includes(filterTag.value)) &&
         matchesSearch(r)
       )
     }))
     .filter(s => s.rows.length)
 )
-
-// -- ringkasan masa kredit -- (rows PM-only ikut disaring sama kayak visibleSections)
-const masaKreditOptions = computed(() =>
-  [...new Set(rows.value.filter(r => !isPmOnly(r)).map(r => r.masaKredit).filter(Boolean) as string[])].sort()
-)
-function masaKreditLabel(mk: string | null) {
-  if (!mk) return ''
-  const [y, m] = mk.split('-')
-  const mi = +m! - 1
-  return mi >= 0 && mi < 12 ? `${MONTH_NAMES[mi]} ${y}` : mk
-}
-const masaKreditSummary = computed(() => {
-  if (!filterMasaKredit.value) return null
-  const sel = rows.value.filter(r => !isPmOnly(r) && r.masaKredit === filterMasaKredit.value)
-  const s = (k: keyof PpnRow) => sel.reduce((a, r) => a + (Number(r[k]) || 0), 0)
-  return { count: sel.length, debet: s('debet'), pph23: s('pph23'), final: s('pph23_4a2'), pph21bp: s('pph21bp') }
-})
 
 /** Mirror computeTagFormula() di server/utils/tagSync.ts — beberapa tag pajak bisa
  *  aktif sekaligus, tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. Semua
@@ -398,11 +379,6 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
         <option value="">Semua grup</option>
         <option v-for="s in sections" :key="s.id || 'none'" :value="s.id || ''">{{ s.nama }}</option>
       </select>
-      <span class="gm-label" style="margin-left:10px;">Masa Kredit:</span>
-      <select v-model="filterMasaKredit">
-        <option value="">Semua Masa Kredit</option>
-        <option v-for="mk in masaKreditOptions" :key="mk" :value="mk">{{ masaKreditLabel(mk) }}</option>
-      </select>
       <span class="gm-label" style="margin-left:10px;">Tag:</span>
       <select v-model="filterTag">
         <option value="">Semua Tag</option>
@@ -411,14 +387,6 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
       <span class="gm-label" style="margin-left:10px;">Cari:</span>
       <input type="text" v-model="filterSearch" placeholder="Cari transaksi, no bank, catatan..." style="width:200px;" />
     </PeriodRangeFilter>
-
-    <div v-if="masaKreditSummary" class="status-box status-ok no-export" style="display:flex;gap:22px;flex-wrap:wrap;">
-      <span>📊 Total Masa Kredit <b>{{ masaKreditLabel(filterMasaKredit) }}</b> ({{ masaKreditSummary.count }} baris):</span>
-      <span>Debet: <b>{{ fmtRp(masaKreditSummary.debet) }}</b></span>
-      <span>PPh 23: <b>{{ fmtRp(masaKreditSummary.pph23) }}</b></span>
-      <span>Final: <b>{{ fmtRp(masaKreditSummary.final) }}</b></span>
-      <span>PPh 21 BP: <b>{{ fmtRp(masaKreditSummary.pph21bp) }}</b></span>
-    </div>
 
     <div v-if="!visibleSections.length" class="empty-state">
       Belum ada data pajak di periode ini. Upload file Excel atau tambah baris manual lewat tombol di tiap grup.
