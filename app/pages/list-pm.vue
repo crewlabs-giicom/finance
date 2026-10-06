@@ -12,9 +12,10 @@ const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
 const { exportTablesColored } = useXlsx()
+const rowColors = useRowColors('ppn')
 
 type PpnRow = {
-  id: string; groupId: string | null; tanggal: string; code: string | null
+  id: string; sourceTxnId: string | null; groupId: string | null; tanggal: string; code: string | null
   description: string | null; tags: string | null
   npwpId: string | null; noInvoice: string | null; tanggalFp: string | null
   dpp: number | null; ppn: number | null; masaKredit: string | null; note: string | null
@@ -42,6 +43,7 @@ async function loadAll() {
     api<PpnRow[]>('/api/ppn', { query: { from: `${fromYm.value}-01`, to: `${toYm.value}-31`, groupId: filterGroup.value || undefined } }),
     api<Npwp[]>('/api/master/npwp')
   ])
+  await rowColors.load()
 }
 await Promise.all([loadAll(), loadGroups(), refreshLock()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
@@ -152,6 +154,21 @@ async function deleteSelected() {
     : { type: 'ok', msg: `${ok} baris dihapus.` }
 }
 
+/** Duplicate lewat menu klik kanan — salin seluruh isi baris kecuali id & sumber transaksinya,
+ *  hasilnya diselipin persis di bawah baris aslinya. */
+async function duplicateRow(id: string) {
+  const srcIndex = rows.value.findIndex(r => r.id === id)
+  rowColors.close()
+  if (srcIndex === -1) return
+  const { id: _id, sourceTxnId: _s, ...body } = rows.value[srcIndex]!
+  try {
+    const created = await api<PpnRow>('/api/ppn', { method: 'POST', body })
+    rows.value.splice(srcIndex + 1, 0, created)
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal duplicate.' }
+  }
+}
+
 // -- update Masa Kredit rame-rame buat baris yang lagi dicentang --
 const bulkMasaKreditMonth = ref('')
 const bulkMasaKreditYear = ref(String(today.getFullYear()))
@@ -216,7 +233,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
 </script>
 
 <template>
-  <div ref="root">
+  <div ref="root" @click="rowColors.close()">
     <div class="topbar">
       <div>
         <h2>List PM</h2>
@@ -293,7 +310,11 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(r, i) in sec.rows" :key="r.id">
+            <tr
+              v-for="(r, i) in sec.rows" :key="r.id"
+              :style="rowColors.colorOf(r.id) ? `background:${rowColors.colorOf(r.id)}` : ''"
+              @contextmenu="rowColors.open($event, r.id)"
+            >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
               <td>{{ i + 1 }}</td>
               <td>{{ formatDateShort(r.tanggal) }}</td>
@@ -339,6 +360,8 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
       </div>
     </div>
   </div>
+
+  <RowColorMenu :menu="rowColors.menu" show-duplicate @pick="rowColors.pick" @duplicate="duplicateRow" />
 </template>
 
 <style scoped>

@@ -73,7 +73,7 @@ export function csvParseLines(text: string): string[][] {
 
 export function detectCsvFormat(rows: string[][]): 'bca' | 'bri' | 'bni' | null {
   const top = rows.slice(0, 10).map(r => r.join('|')).join('\n')
-  if (/No\.\s*rekening/i.test(top)) return 'bca'
+  if (/(No\.\s*rekening|Account\s+No\.)/i.test(top)) return 'bca'
   const header = (rows[0] || []).map(h => h.trim().toUpperCase())
   if (header.includes('NOREK') && header.includes('MUTASI_DEBET')) return 'bri'
   if (header.includes('POST DATE') && header.includes('DESCRIPTION') && header.includes('DEBIT')) return 'bni'
@@ -111,7 +111,7 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
       if (m) noRek = m[1]!.trim()
       // Versi export BCA perorangan nulisnya beda: "No. Rekening,=,'5075164952" —
       // titik dua diganti koma+"=" dan value-nya di field ke-3, bukan nempel di field 1.
-      else if (/^No\.\s*rekening$/i.test(first.trim()) && rows[i]?.[2]) {
+      else if (/^(No\.\s*rekening|Account\s+No\.)$/i.test(first.trim()) && rows[i]?.[2]) {
         noRek = String(rows[i]![2]).trim()
       }
     }
@@ -124,7 +124,7 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
     }
     const f0 = (rows[i]?.[0] || '').trim()
     const f1 = (rows[i]?.[1] || '').trim()
-    if ((f0 === 'Tanggal Transaksi' || f0 === 'Tanggal') && f1 === 'Keterangan') {
+    if (['Tanggal Transaksi', 'Tanggal', 'Date'].includes(f0) && ['Keterangan', 'Description'].includes(f1)) {
       headerIdx = i
       break
     }
@@ -136,7 +136,7 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
   // Versi Bisnis: header "Tanggal Transaksi", Jumlah+arah digabung 1 kolom ("5,000,000.00 CR").
   // Versi Perorangan: header cuma "Tanggal", Jumlah & arah (DB/CR) kepisah jadi 2 kolom sendiri,
   // dan ada 1 kolom kosong tanpa nama di antara Jumlah dan Saldo.
-  const isSplitDbCr = (rows[headerIdx]?.[0] || '').trim() === 'Tanggal'
+  const isSplitDbCr = ['Tanggal', 'Date'].includes((rows[headerIdx]?.[0] || '').trim())
   const minCols = isSplitDbCr ? 6 : 5
 
   const txns: ParsedTxn[] = []
@@ -147,7 +147,7 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
       // Petik satu di depan tanggal, sama alasannya kayak nomor rekening di atas.
       const tanggalRaw = (r[0] || '').replace(/^'/, '').trim()
       if (!tanggalRaw) continue
-      if (/^saldo awal/i.test(tanggalRaw) || /^mutasi/i.test(tanggalRaw) || /^saldo akhir/i.test(tanggalRaw)) break
+      if (/^(saldo awal|mutasi|saldo akhir|starting balance|ending balance)/i.test(tanggalRaw)) break
       if (tanggalRaw.toUpperCase() === 'PEND') continue // belum posting final, dilewati
 
       let tanggal: string | null = null
@@ -203,7 +203,7 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
     // Baris ini gak dibungkus quote di file aslinya, jadi angkanya ("46,680,645.00") bisa
     // ke-pecah ke beberapa "kolom" gara-gara koma ribuannya kebaca sebagai pemisah CSV —
     // digabung balik pakai koma biar regex-nya tetap kebaca utuh.
-    const m = r.join(',').match(/Saldo Awal[\s,]*[:=][\s,]*([\d.,\-]+)/i)
+    const m = r.join(',').match(/(?:Saldo Awal|Starting Balance)[\s,]*[:=][\s,]*([\d.,\-]+)/i)
     if (m) { saldoAwal = parseFloat(m[1]!.replace(/,/g, '')); break }
   }
 
