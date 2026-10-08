@@ -16,7 +16,8 @@ type EntRow = {
 
 const rows = ref<EntRow[]>([])
 const today = new Date()
-const { year: defYear, month: defMonth } = defaultPeriod(today)
+await refreshLock()
+const { year: defYear, month: defMonth } = defaultPeriod(today, lockYm.value)
 const filterFromMonth = ref(defMonth)
 const filterFromYear = ref(defYear)
 const filterToMonth = ref(defMonth)
@@ -36,7 +37,7 @@ async function loadAll() {
   rows.value = await api<EntRow[]>('/api/ent', { query: { from: `${fromYm.value}-01`, to: `${toYm.value}-31` } })
   await rowColors.load()
 }
-await Promise.all([loadAll(), loadGroups(), refreshLock()])
+await Promise.all([loadAll(), loadGroups()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 watch([filterFromMonth, filterFromYear, filterToMonth, filterToYear], loadAll)
 

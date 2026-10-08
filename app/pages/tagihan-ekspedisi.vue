@@ -20,7 +20,8 @@ const gudang = ref<Gudang[]>([])
 const finance = ref<Finance[]>([])
 
 const today = new Date()
-const { year: defYear, month: defMonth } = defaultPeriod(today)
+await refreshLock()
+const { year: defYear, month: defMonth } = defaultPeriod(today, lockYm.value)
 const filterMonth = ref(defMonth)
 const filterYear = ref(defYear)
 const filterStatus = ref<'all' | Status>('all')
@@ -36,7 +37,7 @@ async function loadAll() {
     api<Finance[]>('/api/te/finance')
   ])
 }
-await Promise.all([loadAll(), refreshLock()])
+await loadAll()
 
 /** Waybill dinormalisasi sebelum dicocokkan — export Excel kadang menyisipkan koma pemisah ribuan. */
 function normWb(v: string | null | undefined) {

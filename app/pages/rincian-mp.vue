@@ -3,7 +3,7 @@ import { daysInMonth, defaultPeriod, fmtNum, formatDateShort, parseNum, lightenC
 
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
-const { isLocked, refresh: refreshLock, label: lockLabel } = usePeriodLock()
+const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
 const { exportTablesColored } = useXlsx()
 
 type Store = { id: string; groupId: string | null; nama: string; platform: string | null; saldoAwal: number }
@@ -13,7 +13,8 @@ const stores = ref<Store[]>([])
 const entries = ref<Entry[]>([])
 
 const today = new Date()
-const { year: defYear, month: defMonth } = defaultPeriod(today)
+await refreshLock()
+const { year: defYear, month: defMonth } = defaultPeriod(today, lockYm.value)
 const filterMonth = ref(defMonth)
 const filterYear = ref(defYear)
 const filterGroup = ref<string>('') // '' = semua grup
@@ -36,7 +37,7 @@ async function loadAll() {
     api<Entry[]>('/api/mp/entries')
   ])
 }
-await Promise.all([loadAll(), loadGroups(), refreshLock()])
+await Promise.all([loadAll(), loadGroups()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 
 const monthPrefix = computed(() => `${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}-`)

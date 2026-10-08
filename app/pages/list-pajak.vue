@@ -24,7 +24,8 @@ const npwps = ref<Npwp[]>([])
 const tags = ref<Tag[]>([])
 
 const today = new Date()
-const { year: defYear, month: defMonth } = defaultPeriod(today)
+await refreshLock()
+const { year: defYear, month: defMonth } = defaultPeriod(today, lockYm.value)
 const filterFromMonth = ref(defMonth)
 const filterFromYear = ref(defYear)
 const filterToMonth = ref(defMonth)
@@ -43,7 +44,7 @@ async function loadAll() {
   ])
   await rowColors.load()
 }
-await Promise.all([loadAll(), loadGroups(), refreshLock()])
+await Promise.all([loadAll(), loadGroups()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 
 const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)

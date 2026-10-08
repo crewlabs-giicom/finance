@@ -26,7 +26,8 @@ const rows = ref<PpnRow[]>([])
 const npwps = ref<Npwp[]>([])
 
 const today = new Date()
-const { year: defYear, month: defMonth } = defaultPeriod(today)
+await refreshLock()
+const { year: defYear, month: defMonth } = defaultPeriod(today, lockYm.value)
 const filterFromMonth = ref(defMonth)
 const filterFromYear = ref(defYear)
 const filterToMonth = ref(defMonth)
@@ -47,7 +48,7 @@ async function loadAll() {
     api<Npwp[]>('/api/master/npwp')
   ])
 }
-await Promise.all([loadAll(), loadGroups(), refreshLock()])
+await Promise.all([loadAll(), loadGroups()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 await loadAll() // re-fetch scoped ke grup default user (baru kesetel di atas)
 watch([filterFromMonth, filterFromYear, filterToMonth, filterToYear, filterGroup], loadAll)

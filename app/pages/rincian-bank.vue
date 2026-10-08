@@ -25,7 +25,8 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 function firstOfMonth(y: number, m: number) { return `${y}-${pad2(m)}-01` }
 function lastOfMonth(y: number, m: number) { return `${y}-${pad2(m)}-${pad2(new Date(y, m, 0).getDate())}` }
 
-const { year: defYear, month: defMonth } = defaultPeriod(today)
+await refreshLock()
+const { year: defYear, month: defMonth } = defaultPeriod(today, lockYm.value)
 const filterDateFrom = ref(firstOfMonth(defYear, defMonth))
 const filterDateTo = ref(lastOfMonth(defYear, defMonth))
 const filterPic = ref('') // '' = semua PIC
@@ -50,7 +51,7 @@ async function loadAll() {
   ])
   await loadTxns()
 }
-await Promise.all([loadAll(), loadPics(), loadGroups(), refreshLock()])
+await Promise.all([loadAll(), loadPics(), loadGroups()])
 try {
   const me = await api<{ picId: string | null }>('/api/auth/me')
   if (me.picId) filterPic.value = me.picId

@@ -148,23 +148,31 @@ export function parseBcaCsv(rows: string[][]): { noRek: string; txns: ParsedTxn[
       const tanggalRaw = (r[0] || '').replace(/^'/, '').trim()
       if (!tanggalRaw) continue
       if (/^(saldo awal|mutasi|saldo akhir|starting balance|ending balance)/i.test(tanggalRaw)) break
-      if (tanggalRaw.toUpperCase() === 'PEND') continue // belum posting final, dilewati
-
       let tanggal: string | null = null
-      const dmy = tanggalRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-      if (dmy) {
-        tanggal = `${dmy[3]}-${dmy[2]!.padStart(2, '0')}-${dmy[1]!.padStart(2, '0')}`
+      if (tanggalRaw.toUpperCase() === 'PEND') {
+        // Transaksi yang belum di-posting final sama bank (makanya belum ada tanggal
+        // resmi dari bank) — dianggap transaksi hari ini (tanggal upload). Catatan:
+        // begitu bank udah ngasih tanggal resmi di file mutasi berikutnya, baris ini
+        // BISA kedobel (tanggalnya beda dari yang di-import duluan pakai tanggal hari
+        // ini, jadi dedup-nya gak kedetect) — perlu dicek manual kalau itu terjadi.
+        const now = new Date()
+        tanggal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
       } else {
-        // sebagian export BCA cuma menulis "DD/MM" tanpa tahun — tahunnya diambil
-        // dari baris "Periode : .. - .." di bagian atas file
-        const dm2 = tanggalRaw.match(/^(\d{1,2})\/(\d{1,2})$/)
-        if (dm2 && periodeStart) {
-          const d = +dm2[1]!, mo = +dm2[2]!
-          let y = periodeStart.y
-          if (periodeEnd && periodeStart.y !== periodeEnd.y) {
-            y = mo >= periodeStart.m ? periodeStart.y : periodeEnd.y
+        const dmy = tanggalRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+        if (dmy) {
+          tanggal = `${dmy[3]}-${dmy[2]!.padStart(2, '0')}-${dmy[1]!.padStart(2, '0')}`
+        } else {
+          // sebagian export BCA cuma menulis "DD/MM" tanpa tahun — tahunnya diambil
+          // dari baris "Periode : .. - .." di bagian atas file
+          const dm2 = tanggalRaw.match(/^(\d{1,2})\/(\d{1,2})$/)
+          if (dm2 && periodeStart) {
+            const d = +dm2[1]!, mo = +dm2[2]!
+            let y = periodeStart.y
+            if (periodeEnd && periodeStart.y !== periodeEnd.y) {
+              y = mo >= periodeStart.m ? periodeStart.y : periodeEnd.y
+            }
+            tanggal = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
           }
-          tanggal = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         }
       }
       if (!tanggal) continue

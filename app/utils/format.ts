@@ -119,10 +119,23 @@ export function ymOf(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 7) : ''
 }
 
-/** Periode default buat filter tanggal/bulan di awal buka halaman. 10 hari pertama
- *  tiap bulan masih dianggap "bulan kemarin" — ngasih waktu buat nutup data bulan
- *  lalu dulu sebelum filter default-nya otomatis geser ke bulan baru. */
-export function defaultPeriod(d: Date = new Date()): { year: number; month: number } {
+/** Periode default buat filter tanggal/bulan di awal buka halaman.
+ *
+ *  Kalau ada periode yang udah dikunci (`lockYm`, format 'YYYY-MM'), default-nya
+ *  langsung ke bulan SETELAH kunci itu — periode yang dikunci udah final/gak bisa
+ *  diapa-apain lagi, jadi gak ada gunanya jadi default tampilan.
+ *
+ *  Kalau belum ada kunci, 10 hari pertama tiap bulan masih dianggap "bulan
+ *  kemarin" — ngasih waktu buat nutup data bulan lalu dulu sebelum filter
+ *  default-nya otomatis geser ke bulan baru. */
+export function defaultPeriod(d: Date = new Date(), lockYm?: string | null): { year: number; month: number } {
+  if (lockYm) {
+    const [ly, lm] = lockYm.split('-').map(Number)
+    let month = lm! + 1
+    let year = ly!
+    if (month > 12) { month = 1; year += 1 }
+    return { year, month }
+  }
   let year = d.getFullYear()
   let month = d.getMonth() + 1
   if (d.getDate() <= 10) {
