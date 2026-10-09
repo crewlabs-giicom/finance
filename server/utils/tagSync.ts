@@ -63,14 +63,15 @@ export async function syncTagDerivedRows(txnId: string) {
   const [existingPpn] = await db.select().from(ppnRows).where(eq(ppnRows.sourceTxnId, txnId)).limit(1)
   if (isPajak) {
     const formula = computeTagFormula(tagList, amount)
+    const ppn = Math.round(amount * 0.11)
     if (existingPpn) {
       await db.update(ppnRows).set({
-        tanggal: t.tanggal, description: desc, debet: amount, dpp: amount, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula
+        tanggal: t.tanggal, description: desc, debet: amount, dpp: amount, ppn, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula
       }).where(eq(ppnRows.id, existingPpn.id))
     } else {
       await db.insert(ppnRows).values({
         id: genId('ppn'), sourceTxnId: txnId, groupId, tanggal: t.tanggal, code: t.noBankManual || '',
-        description: desc, store: '', tags: t.tag || '', debet: amount, dpp: amount, kredit: 0, note: '', ...formula
+        description: desc, store: '', tags: t.tag || '', debet: amount, dpp: amount, ppn, kredit: 0, note: '', ...formula
       })
     }
   } else if (existingPpn) {

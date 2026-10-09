@@ -61,9 +61,10 @@ function npwpOf(id: string | null) {
 }
 
 /** Kolom "No. NPWP" bisa diketik bebas — gak perlu buka Master Data dulu. Kalau
- *  nomornya udah ada di master, tinggal di-link; kalau belum, baris master baru
- *  langsung dibikin otomatis (Nama NPWP-nya sementara disamain sama nomornya,
- *  bisa diganti belakangan lewat Master Data). */
+ *  nomornya udah ada di master, tinggal di-link; kalau belum, user ditanya nama
+ *  perusahaannya sekalian (No. NPWP + Nama langsung kesimpen bareng ke Master Data,
+ *  bukan nama-nya nyusul manual belakangan). Batal/kosongin prompt -> nama sementara
+ *  disamain sama nomornya, masih bisa diganti belakangan lewat Master Data. */
 async function onNpwpNumberChange(r: PpnRow, value: string) {
   const noNpwp = value.trim()
   if (!noNpwp) { await patchRow(r, { npwpId: null }); return }
@@ -71,8 +72,9 @@ async function onNpwpNumberChange(r: PpnRow, value: string) {
   const existing = npwps.value.find(n => n.noNpwp.trim().toLowerCase() === noNpwp.toLowerCase())
   if (existing) { await patchRow(r, { npwpId: existing.id }); return }
 
+  const namaNpwp = prompt(`NPWP "${noNpwp}" belum ada di Master Data. Nama perusahaannya:`)?.trim() || noNpwp
   try {
-    const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp: noNpwp } })
+    const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp } })
     npwps.value.push(created)
     await patchRow(r, { npwpId: created.id })
   } catch (e: any) {
@@ -163,10 +165,16 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
 
 /** Ubah Debet manual -> recompute pajak dari tag yang lagi aktif di baris itu, sama
  *  kayak toggleTag() di atas, biar PPh 23/Final/PPh 21 BP selalu ngikutin Debet terbaru.
- *  DPP juga ikut disamain sama Debet (tetap bisa diedit manual belakangan). */
+ *  DPP & PPN juga ikut disamain/dihitung dari Debet (tetap bisa diedit manual belakangan). */
 async function onDebetChange(r: PpnRow, value: string) {
   const debet = parseNum(value)
-  await patchRow(r, { debet, dpp: debet, ...computeTagFormula(parseTagList(r.tags), debet) })
+  await patchRow(r, { debet, dpp: debet, ppn: Math.round(debet * 0.11), ...computeTagFormula(parseTagList(r.tags), debet) })
+}
+
+/** Ubah DPP manual -> PPN otomatis 11% dari DPP (tetap bisa diedit manual belakangan). */
+async function onDppChange(r: PpnRow, value: string) {
+  const dpp = parseNum(value)
+  await patchRow(r, { dpp, ppn: Math.round(dpp * 0.11) })
 }
 
 async function addRow(groupId: string | null) {
@@ -301,9 +309,10 @@ const COL_KREDIT = 6
 const COL_NO_NPWP = 7
 const COL_NO_INVOICE = 9
 const COL_DPP = 10
-const COL_PPH23 = 11
-const COL_FINAL = 12
-const COL_PPH21BP = 13
+const COL_PPN = 11
+const COL_PPH23 = 12
+const COL_FINAL = 13
+const COL_PPH21BP = 14
 
 const root = ref<HTMLElement | null>(null)
 async function onExport() {
@@ -319,6 +328,7 @@ async function onExport() {
       if (colIdx === COL_DEBET) return r.debet || null
       if (colIdx === COL_KREDIT) return r.kredit || null
       if (colIdx === COL_DPP) return r.dpp
+      if (colIdx === COL_PPN) return r.ppn
       if (colIdx === COL_PPH23) return r.pph23
       if (colIdx === COL_FINAL) return r.pph23_4a2
       if (colIdx === COL_PPH21BP) return r.pph21bp
@@ -408,7 +418,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               <th>Tanggal</th><th>No Bank</th><th>Store</th><th>Description</th><th>Tags</th>
               <th class="num">Debet</th><th class="num">Kredit</th>
               <th>No. NPWP</th><th>NPWP</th><th>No Invoice</th>
-              <th class="num">DPP</th>
+              <th class="num">DPP</th><th class="num">PPN</th>
               <th class="num">PPh 23</th><th class="num">Final</th><th class="num">PPh 21 BP</th>
               <th>Catatan</th>
             </tr>
@@ -460,7 +470,8 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
                 />
               </td>
               <td><input class="cell-input" :value="r.noInvoice" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { noInvoice: ($event.target as HTMLInputElement).value })" /></td>
-              <td class="num"><input class="cell-input" :value="fmtNum(r.dpp, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { dpp: parseNum(($event.target as HTMLInputElement).value) })" /></td>
+              <td class="num"><input class="cell-input" :value="fmtNum(r.dpp, true)" :disabled="isLocked(r.tanggal)" @change="onDppChange(r, ($event.target as HTMLInputElement).value)" /></td>
+              <td class="num"><input class="cell-input" :value="fmtNum(r.ppn, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { ppn: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph23, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph23: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph23_4a2, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph23_4a2: parseNum(($event.target as HTMLInputElement).value) })" /></td>
               <td class="num"><input class="cell-input" :value="fmtNum(r.pph21bp, true)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { pph21bp: parseNum(($event.target as HTMLInputElement).value) })" /></td>
@@ -473,6 +484,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'kredit')) }}</td>
               <td colspan="3"></td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'dpp')) }}</td>
+              <td class="num">{{ fmtRp(subtotal(sec.rows, 'ppn')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'pph23')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'pph23_4a2')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'pph21bp')) }}</td>
