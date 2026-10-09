@@ -104,10 +104,19 @@ const selectedAccountWarna = computed(() => groups.value.find(g => g.id === sele
 
 function txnsForAccount(accId: string) {
   const q = filterSearch.value.trim().toLowerCase()
+  // Angka di query (titik/koma dibuang) dicocokkan ke nominal Debet/Kredit juga — biar
+  // ngetik "220.000" atau "220000" sama-sama ketemu transaksi dengan nominal segitu.
+  const qDigits = q.replace(/[^0-9]/g, '')
+  function matchesSearch(t: Txn) {
+    if (!q) return true
+    if ([t.transaksi, t.cabang, t.noBankManual, t.ketTransaksiManual, t.tag, t.noteManual]
+      .some(v => (v || '').toLowerCase().includes(q))) return true
+    if (qDigits && ((t.debet && String(Math.round(t.debet)).includes(qDigits)) || (t.kredit && String(Math.round(t.kredit)).includes(qDigits)))) return true
+    return false
+  }
   return txns.value
     .filter(t => t.accountId === accId && t.tanggal >= filterDateFrom.value && t.tanggal <= filterDateTo.value)
-    .filter(t => !q || [t.transaksi, t.cabang, t.noBankManual, t.ketTransaksiManual, t.tag, t.noteManual]
-      .some(v => (v || '').toLowerCase().includes(q)))
+    .filter(matchesSearch)
     .sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : (a.urutan ?? 0) - (b.urutan ?? 0)))
 }
 
@@ -421,7 +430,7 @@ async function onExport() {
       <input
         type="text"
         v-model="filterSearch"
-        placeholder="Cari transaksi, cabang, no bank, catatan..."
+        placeholder="Cari transaksi, cabang, no bank, catatan, nominal..."
         style="width:220px;"
       />
     </div>
