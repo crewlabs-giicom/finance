@@ -67,6 +67,15 @@ function npwpOf(id: string | null) {
   return npwps.value.find(n => n.id === id)
 }
 
+/** Dropdown "Keterangan" sempat 2 tingkat (Status "Credited" + Kategori terpisah) sebelum
+ *  disederhanain jadi 1 dropdown langsung (Uncredited / nama kategori). Baris lama yang
+ *  kesimpen pas masih 2 tingkat (`ketStatus` literal "Credited" + `ketKategori` keisi)
+ *  tetap kebaca bener di sini — begitu baris itu di-edit lagi, kesimpen ulang pakai pola baru. */
+function ketDisplay(r: PpnRow): string {
+  if (r.ketStatus === 'Credited') return r.ketKategori || 'Uncredited'
+  return r.ketStatus || 'Uncredited'
+}
+
 const masaKreditOptions = computed(() =>
   [...new Set(rows.value.filter(matchesTag).map(r => r.masaKredit).filter(Boolean) as string[])].sort()
 )
@@ -137,11 +146,6 @@ async function onDppChange(r: PpnRow, value: string) {
   await patchRow(r, { dpp, ppn: Math.round(dpp * 0.11) })
 }
 
-/** Pindah status keluar dari "Credited" otomatis ngosongin kategori-nya, biar gak nyangkut data lama. */
-async function onKetStatusChange(r: PpnRow, value: string) {
-  await patchRow(r, { ketStatus: value, ketKategori: value === 'Credited' ? r.ketKategori : '' })
-}
-
 const multi = useMultiSelect()
 const selectedIds = multi.selectedIds
 async function deleteSelected() {
@@ -200,6 +204,26 @@ async function applyBulkMasaKredit() {
   status.value = fail
     ? { type: 'err', msg: `${ok} baris di-update, ${fail} gagal (kemungkinan periode terkunci).` }
     : { type: 'ok', msg: `${ok} baris Masa Kredit-nya di-update ke ${MONTH_NAMES[+bulkMasaKreditMonth.value - 1]} ${bulkMasaKreditYear.value}.` }
+}
+
+// -- update Keterangan rame-rame buat baris yang lagi dicentang --
+const bulkKet = ref('Uncredited')
+async function applyBulkKet() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  let ok = 0, fail = 0
+  for (const id of ids) {
+    try {
+      await api(`/api/ppn/${id}`, { method: 'PATCH', body: { ketStatus: bulkKet.value, ketKategori: '' } })
+      ok++
+    } catch {
+      fail++
+    }
+  }
+  await loadAll()
+  status.value = fail
+    ? { type: 'err', msg: `${ok} baris di-update, ${fail} gagal (kemungkinan periode terkunci).` }
+    : { type: 'ok', msg: `${ok} baris Keterangan-nya di-update ke "${bulkKet.value}".` }
 }
 
 // Kolom di tabel (index setelah kolom .no-export dibuang).
@@ -286,7 +310,13 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
         <span class="group-dot" :style="{ background: sec.warna }" />
         {{ sec.nama }}
         <div v-if="selectedIds.size" class="no-export" style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-          <span class="gm-label">Set Masa Kredit ({{ selectedIds.size }} terpilih):</span>
+          <span class="gm-label">Set Keterangan ({{ selectedIds.size }} terpilih):</span>
+          <select v-model="bulkKet" style="width:140px;">
+            <option value="Uncredited">Uncredited</option>
+            <option v-for="k in pmKategoris" :key="k.id" :value="k.nama">{{ k.nama }}</option>
+          </select>
+          <button class="btn secondary" @click="applyBulkKet">Terapkan</button>
+          <span class="gm-label" style="margin-left:10px;">Set Masa Kredit:</span>
           <select v-model="bulkMasaKreditMonth" style="width:100px;">
             <option value="">- Bulan -</option>
             <option v-for="(m, mi) in MONTH_NAMES" :key="m" :value="String(mi + 1).padStart(2, '0')">{{ m }}</option>
@@ -357,16 +387,10 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                 </div>
               </td>
               <td>
-                <div style="display:flex;gap:2px;">
-                  <select :value="r.ketStatus || 'Uncredited'" :disabled="isLocked(r.tanggal)" @change="onKetStatusChange(r, ($event.target as HTMLSelectElement).value)">
-                    <option value="Uncredited">Uncredited</option>
-                    <option value="Credited">Credited</option>
-                  </select>
-                  <select v-if="r.ketStatus === 'Credited'" :value="r.ketKategori || ''" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { ketKategori: ($event.target as HTMLSelectElement).value })">
-                    <option value="">- pilih -</option>
-                    <option v-for="k in pmKategoris" :key="k.id" :value="k.nama">{{ k.nama }}</option>
-                  </select>
-                </div>
+                <select :value="ketDisplay(r)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { ketStatus: ($event.target as HTMLSelectElement).value, ketKategori: '' })">
+                  <option value="Uncredited">Uncredited</option>
+                  <option v-for="k in pmKategoris" :key="k.id" :value="k.nama">{{ k.nama }}</option>
+                </select>
               </td>
             </tr>
             <tr class="grand-total-row">
