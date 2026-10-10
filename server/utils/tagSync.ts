@@ -71,7 +71,8 @@ export async function syncTagDerivedRows(txnId: string) {
     } else {
       await db.insert(ppnRows).values({
         id: genId('ppn'), sourceTxnId: txnId, groupId, tanggal: t.tanggal, code: t.noBankManual || '',
-        description: desc, store: '', tags: t.tag || '', debet: amount, dpp: amount, ppn, kredit: 0, note: '', ...formula
+        description: desc, store: '', tags: t.tag || '', debet: amount, dpp: amount, ppn, kredit: 0, note: '',
+        ketStatus: 'Uncredited', ...formula
       })
     }
   } else if (existingPpn) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, defaultPeriod, parseTagList, lightenColor } from '~/utils/format'
+import { autoGrow, defaultPeriod, fmtRp, parseTagList, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -196,6 +196,16 @@ async function deleteTxn(id: string) {
 
 const multi = useMultiSelect()
 const selectedIds = multi.selectedIds
+/** Sum Debet/Kredit baris yang lagi dicentang — discan dari allTxnsForSelected (bukan
+ *  cuma pagedTxns) biar tetap bener kalau centangannya nyebar lintas halaman. */
+const selectedSummary = computed(() => {
+  if (!selectedIds.size) return null
+  let debet = 0, kredit = 0
+  for (const t of allTxnsForSelected.value) {
+    if (selectedIds.has(t.id)) { debet += t.debet || 0; kredit += t.kredit || 0 }
+  }
+  return { debet, kredit }
+})
 async function deleteSelected() {
   const ids = [...selectedIds]
   if (!ids.length) return
@@ -442,7 +452,11 @@ async function onExport() {
     <div v-else class="panel">
       <div class="panel-head">
         <h3><span class="pill">{{ selectedAccount.bankType }}</span> {{ selectedAccount.namaRek }} <span style="color:var(--muted);font-weight:400;">({{ selectedAccount.noRek }})</span></h3>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span v-if="selectedSummary" class="status-box status-ok no-export" style="margin:0;padding:6px 10px;display:flex;gap:14px;">
+            <span>Debet: <b>{{ fmtRp(selectedSummary.debet) }}</b></span>
+            <span>Kredit: <b>{{ fmtRp(selectedSummary.kredit) }}</b></span>
+          </span>
           <button v-if="selectedIds.size" class="btn danger no-export" @click="deleteSelected">🗑 Hapus {{ selectedIds.size }} Terpilih</button>
           <button class="btn no-export" @click="openAddModal">+ Tambah Manual</button>
         </div>

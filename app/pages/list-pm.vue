@@ -358,8 +358,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               </td>
               <td>
                 <div style="display:flex;gap:2px;">
-                  <select :value="r.ketStatus || ''" :disabled="isLocked(r.tanggal)" @change="onKetStatusChange(r, ($event.target as HTMLSelectElement).value)">
-                    <option value="">-</option>
+                  <select :value="r.ketStatus || 'Uncredited'" :disabled="isLocked(r.tanggal)" @change="onKetStatusChange(r, ($event.target as HTMLSelectElement).value)">
                     <option value="Uncredited">Uncredited</option>
                     <option value="Credited">Credited</option>
                   </select>

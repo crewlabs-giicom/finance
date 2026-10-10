@@ -46,6 +46,12 @@ export function noBankSide(debet: number, kredit: number): 'debet' | 'kredit' | 
   return null
 }
 
+/** Baris "BIAYA TXN" (biaya BI-FAST dari bank) selalu nempel tepat di bawah transaksi
+ *  aslinya di file mutasi — No Bank-nya ngikutin baris di atasnya, bukan nomor urut baru. */
+function isTxnFee(transaksi: string | null | undefined): boolean {
+  return !!transaksi && /\btxn\b/i.test(transaksi)
+}
+
 /** Generate No Bank buat SATU transaksi (dipakai tambah-manual & patch). */
 export async function generateNoBank(accountId: string, side: 'debet' | 'kredit', tanggal: string): Promise<string | null> {
   const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, accountId)).limit(1)
@@ -63,9 +69,13 @@ export async function generateNoBank(accountId: string, side: 'debet' | 'kredit'
  *  debet di bulan yang sama) — gak bisa query database ulang per baris (nomornya bakal
  *  kembar semua). Jadi tiap kombinasi rekening+prefix cuma di-query SEKALI buat dapet
  *  nomor awal, abis itu di-increment di memori buat tiap baris berikutnya di kelompok
- *  yang sama, ngikut urutan baris di file (yang notabene udah kronologis). */
+ *  yang sama, ngikut urutan baris di file (yang notabene udah kronologis).
+ *
+ *  Baris yang teksnya ngandung "TXN" (biaya BI-FAST) gak dapet nomor urut baru — dia
+ *  nempel ke No Bank baris NYATA terakhir buat rekening itu (bukan baris "TXN" lain),
+ *  biar transaksi sama biaya-nya kebaca satu No Bank yang sama. */
 export async function generateNoBankBatch(
-  rows: { accountId: string; debet: number; kredit: number; tanggal: string }[]
+  rows: { accountId: string; debet: number; kredit: number; tanggal: string; transaksi?: string | null }[]
 ): Promise<(string | null)[]> {
   const accountIds = [...new Set(rows.map(r => r.accountId))]
   const accs = accountIds.length ? await db.select().from(bankAccounts).where(inArray(bankAccounts.id, accountIds)) : []
@@ -86,12 +96,23 @@ export async function generateNoBankBatch(
     counters.set(key, await maxSeqForPrefix(accountId, prefix))
   }
 
-  return prefixes.map((p) => {
-    if (!p) return null
+  const lastNoBank = new Map<string, string>() // accountId -> No Bank transaksi NYATA terakhir
+  const result: (string | null)[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!
+    if (isTxnFee(r.transaksi) && lastNoBank.has(r.accountId)) {
+      result.push(lastNoBank.get(r.accountId)!)
+      continue // jangan konsumsi nomor urut baru, jangan update lastNoBank -> biaya TXN
+               // berantai (kalau ada) tetap nempel ke transaksi aslinya, bukan ke TXN sebelumnya
+    }
+    const p = prefixes[i]
+    if (!p) { result.push(null); continue }
     const key = `${p.accountId}\u0000${p.prefix}`
     const counter = counters.get(key)!
     const noBank = `${p.prefix}${String(counter.next).padStart(counter.padWidth, '0')}`
     counter.next++
-    return noBank
-  })
+    lastNoBank.set(r.accountId, noBank)
+    result.push(noBank)
+  }
+  return result
 }
