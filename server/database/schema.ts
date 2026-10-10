@@ -147,7 +147,11 @@ export const ppnRows = sqliteTable('ppn_rows', {
   lampiranFakturPajak: text('lampiran_faktur_pajak').default(''),
   masaKredit: text('masa_kredit').default(''), // 'YYYY-MM'
   bentukJenisBiaya: text('bentuk_jenis_biaya').default(''),
-  tanggalFp: text('tanggal_fp') // dipakai List PM (tag "PM") sebagai tanggal Faktur Pajak, beda dari `tanggal` (tanggal transaksi bank)
+  tanggalFp: text('tanggal_fp'), // dipakai List PM (tag "PM") sebagai tanggal Faktur Pajak, beda dari `tanggal` (tanggal transaksi bank)
+  // Dropdown "Keterangan" khusus List PM — sengaja BUKAN `note` (field itu dipakai List
+  // Pajak sebagai "Catatan" bebas, gak boleh kepaksa cuma 2 pilihan).
+  ketStatus: text('ket_status'), // 'Uncredited' | 'Credited'
+  ketKategori: text('ket_kategori') // nama dari pm_kategori_master, cuma keisi kalau ketStatus = 'Credited'
 }, (t) => ({
   groupIdx: index('ppn_rows_group_idx').on(t.groupId),
   sourceTxnIdx: index('ppn_rows_source_txn_idx').on(t.sourceTxnId),
@@ -268,6 +272,12 @@ export const dnRows = sqliteTable('dn_rows', {
 
 // ---------- Tag master (Rincian Bank <-> List Pajak/Entertainment) ----------
 export const tagMaster = sqliteTable('tag_master', {
+  id: text('id').primaryKey(),
+  nama: text('nama').notNull().unique()
+})
+
+// ---------- Kategori Credited (List PM) ----------
+export const pmKategoriMaster = sqliteTable('pm_kategori_master', {
   id: text('id').primaryKey(),
   nama: text('nama').notNull().unique()
 })

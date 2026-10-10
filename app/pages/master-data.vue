@@ -16,6 +16,7 @@ type Account = {
 type Npwp = { id: string; noNpwp: string; namaNpwp: string; nik: string | null; alamat: string | null }
 type Coa = { id: string; noCoa: string; namaCoa: string }
 type Tag = { id: string; nama: string }
+type PmKategori = { id: string; nama: string }
 type SimpleMaster = { id: string; kind: 'tipe' | 'kategori' | 'div'; value: string }
 type Pic = { id: string; nama: string; urutan: number }
 type UserRow = { id: string; name: string; email: string; role: string; picId: string | null }
@@ -26,6 +27,7 @@ const accounts = ref<Account[]>([])
 const npwps = ref<Npwp[]>([])
 const coas = ref<Coa[]>([])
 const tags = ref<Tag[]>([])
+const pmKategoris = ref<PmKategori[]>([])
 const asetMaster = ref<SimpleMaster[]>([])
 const picList = ref<Pic[]>([])
 const userList = ref<UserRow[]>([])
@@ -38,6 +40,7 @@ const newAcc = reactive({ groupId: '', picId: '', bankType: 'BCA', namaRek: '', 
 const newNpwp = reactive({ noNpwp: '', namaNpwp: '', nik: '', alamat: '' })
 const newCoa = reactive({ noCoa: '', namaCoa: '' })
 const newTag = ref('')
+const newPmKategori = ref('')
 const newAsetMaster = reactive({ tipe: '', kategori: '', div: '' })
 const newPicNama = ref('')
 const newStore = reactive({ groupId: '', nama: '', platform: '', saldoAwal: '' })
@@ -45,12 +48,13 @@ const lockInput = ref('')
 const npwpFilter = ref('')
 
 async function loadAll() {
-  ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, asetMaster.value, picList.value, userList.value, stores.value] = await Promise.all([
+  ;[groups.value, accounts.value, npwps.value, coas.value, tags.value, pmKategoris.value, asetMaster.value, picList.value, userList.value, stores.value] = await Promise.all([
     api<Group[]>('/api/master/groups'),
     api<Account[]>('/api/master/accounts'),
     api<Npwp[]>('/api/master/npwp'),
     api<Coa[]>('/api/master/coa'),
     api<Tag[]>('/api/master/tags'),
+    api<PmKategori[]>('/api/master/pm-kategori'),
     api<SimpleMaster[]>('/api/master/aset-simple'),
     api<Pic[]>('/api/master/pics'),
     api<UserRow[]>('/api/master/users'),
@@ -242,6 +246,15 @@ const addTag = () => {
   }, 'Tag ditambahkan.')
 }
 const deleteTag = (id: string) => run(() => api(`/api/master/tags/${id}`, { method: 'DELETE' }), 'Tag dihapus.')
+
+const addPmKategori = () => {
+  if (!newPmKategori.value.trim()) return
+  return run(async () => {
+    await api('/api/master/pm-kategori', { method: 'POST', body: { nama: newPmKategori.value.trim() } })
+    newPmKategori.value = ''
+  }, 'Kategori ditambahkan.')
+}
+const deletePmKategori = (id: string) => run(() => api(`/api/master/pm-kategori/${id}`, { method: 'DELETE' }), 'Kategori dihapus.')
 
 const addAsetMaster = (kind: 'tipe' | 'kategori' | 'div') => {
   const value = newAsetMaster[kind].trim()
@@ -526,6 +539,19 @@ const filteredNpwps = computed(() => {
           <span v-for="c in coas" :key="c.id" class="chip">{{ c.noCoa }} — {{ c.namaCoa }}<span class="chip-del" @click="deleteCoa(c.id)">✕</span></span>
         </div>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🏷️ Kategori Credited (List PM)</h3></div>
+      <div class="toolbar">
+        <input v-model="newPmKategori" placeholder="Nama kategori (misal: Persediaan)" @keyup.enter="addPmKategori" />
+        <button class="btn" @click="addPmKategori">+ Tambah Kategori</button>
+      </div>
+      <div v-if="!pmKategoris.length" class="empty-state">Belum ada kategori.</div>
+      <div v-else class="chip-row">
+        <span v-for="k in pmKategoris" :key="k.id" class="chip">{{ k.nama }}<span class="chip-del" @click="deletePmKategori(k.id)">✕</span></span>
+      </div>
+      <p class="hint">Dipakai sebagai pilihan dropdown kolom "Keterangan" di List PM, khusus kalau statusnya "Credited".</p>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">

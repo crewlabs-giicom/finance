@@ -19,11 +19,14 @@ type PpnRow = {
   description: string | null; tags: string | null
   npwpId: string | null; noInvoice: string | null; tanggalFp: string | null
   dpp: number | null; ppn: number | null; masaKredit: string | null; note: string | null
+  ketStatus: string | null; ketKategori: string | null
 }
 type Npwp = { id: string; noNpwp: string; namaNpwp: string }
+type PmKategori = { id: string; nama: string }
 
 const rows = ref<PpnRow[]>([])
 const npwps = ref<Npwp[]>([])
+const pmKategoris = ref<PmKategori[]>([])
 
 const today = new Date()
 await refreshLock()
@@ -40,9 +43,10 @@ const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.
 const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
 
 async function loadAll() {
-  ;[rows.value, npwps.value] = await Promise.all([
+  ;[rows.value, npwps.value, pmKategoris.value] = await Promise.all([
     api<PpnRow[]>('/api/ppn', { query: { from: `${fromYm.value}-01`, to: `${toYm.value}-31`, groupId: filterGroup.value || undefined } }),
-    api<Npwp[]>('/api/master/npwp')
+    api<Npwp[]>('/api/master/npwp'),
+    api<PmKategori[]>('/api/master/pm-kategori')
   ])
   await rowColors.load()
 }
@@ -131,6 +135,11 @@ async function onNpwpNumberChange(r: PpnRow, value: string) {
 async function onDppChange(r: PpnRow, value: string) {
   const dpp = parseNum(value)
   await patchRow(r, { dpp, ppn: Math.round(dpp * 0.11) })
+}
+
+/** Pindah status keluar dari "Credited" otomatis ngosongin kategori-nya, biar gak nyangkut data lama. */
+async function onKetStatusChange(r: PpnRow, value: string) {
+  await patchRow(r, { ketStatus: value, ketKategori: value === 'Credited' ? r.ketKategori : '' })
 }
 
 const multi = useMultiSelect()
@@ -347,7 +356,19 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                   </select>
                 </div>
               </td>
-              <td><input class="cell-input" style="min-width:160px;" :value="r.note" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { note: ($event.target as HTMLInputElement).value })" /></td>
+              <td>
+                <div style="display:flex;gap:2px;">
+                  <select :value="r.ketStatus || ''" :disabled="isLocked(r.tanggal)" @change="onKetStatusChange(r, ($event.target as HTMLSelectElement).value)">
+                    <option value="">-</option>
+                    <option value="Uncredited">Uncredited</option>
+                    <option value="Credited">Credited</option>
+                  </select>
+                  <select v-if="r.ketStatus === 'Credited'" :value="r.ketKategori || ''" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { ketKategori: ($event.target as HTMLSelectElement).value })">
+                    <option value="">- pilih -</option>
+                    <option v-for="k in pmKategoris" :key="k.id" :value="k.nama">{{ k.nama }}</option>
+                  </select>
+                </div>
+              </td>
             </tr>
             <tr class="grand-total-row">
               <td colspan="8" style="text-align:right;">TOTAL</td>
