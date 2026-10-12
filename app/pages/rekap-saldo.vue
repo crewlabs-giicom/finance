@@ -11,7 +11,7 @@ const hutangColors = useRowColors('hutang')
 const bayarColors = useRowColors('bayar')
 
 type Group = { id: string; nama: string; warna: string | null; picId: string | null }
-type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean }
+type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean; updatedAt: string | null }
 type Deposito = { id: string; nama: string | null; nominal: number; tglMasuk: string | null; rate: string | null; jatuhTempo: string | null; ket: string | null; groupId: string | null }
 type Hutang = { id: string; peminjam: string | null; kreditur: string | null; nominal: number; rate: string | null; tglPinjam: string | null; jatuhTempo: string | null; ket: string | null; groupId: string | null }
 type Bayar = { id: string; pt: string | null; groupId: string | null; nominal: number; tglBayar: string | null; tglPesan: string | null; noCtr: string | null; payIam: string | null; payEkspds: string | null; ket: string | null }

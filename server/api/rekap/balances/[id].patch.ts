@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
     patch.saldo = Number(body.saldo) || 0
     // "Bisa Dipakai" itu rumus turunan dari saldo, bukan input manual — selalu dihitung ulang.
     patch.bisaDipakai = hitungBisaDipakai(patch.saldo)
+    patch.updatedAt = new Date().toISOString()
   }
   if (body.pic !== undefined) patch.pic = body.pic || null
   if (body.rek !== undefined) patch.rek = String(body.rek)

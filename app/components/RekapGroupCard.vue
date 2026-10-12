@@ -3,7 +3,7 @@ import { hitungBisaDipakai, parseNum, formatDateShort, parseDateShort, autoGrow,
 
 type Group = { id: string; nama: string; warna: string | null }
 type Pic = { id: string; nama: string }
-type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean }
+type Balance = { id: string; pic: string | null; rek: string; saldo: number; bisaDipakai: number | null; ket: string | null; grup: string | null; locked: boolean; updatedAt: string | null }
 type Deposito = { id: string; nama: string | null; nominal: number; tglMasuk: string | null; rate: string | null; jatuhTempo: string | null; ket: string | null; groupId: string | null }
 type Hutang = { id: string; peminjam: string | null; kreditur: string | null; nominal: number; rate: string | null; tglPinjam: string | null; jatuhTempo: string | null; ket: string | null; groupId: string | null }
 type Bayar = { id: string; pt: string | null; groupId: string | null; nominal: number; tglBayar: string | null; tglPesan: string | null; noCtr: string | null; payIam: string | null; payEkspds: string | null; ket: string | null }
@@ -33,6 +33,15 @@ function rowStyle(colors: ReturnType<typeof useRowColors>, id: string) {
   return props.groupWarna ? `background:${lightenColor(props.groupWarna)}` : ''
 }
 
+/** 'YY-MM-DD HH:MM', zona waktu lokal browser yang buka. */
+function fmtUpdatedAt(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${String(d.getFullYear()).slice(2)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // -- Saldo RK --
 async function toggleRowLock(b: Balance) {
   await patchBalance(b, 'locked', !b.locked)
@@ -41,7 +50,10 @@ async function patchBalance(b: Balance, field: string, value: any) {
   try {
     await api(`/api/rekap/balances/${b.id}`, { method: 'PATCH', body: { [field]: value } })
     ;(b as any)[field] = value
-    if (field === 'saldo') b.bisaDipakai = hitungBisaDipakai(value)
+    if (field === 'saldo') {
+      b.bisaDipakai = hitungBisaDipakai(value)
+      b.updatedAt = new Date().toISOString()
+    }
   } catch (e: any) {
     alert(e?.data?.statusMessage || 'Gagal update.')
     emit('reload')
@@ -110,11 +122,11 @@ function sumNominal(rows: { nominal: number }[]) {
     <div class="table-wrap">
       <table class="dense bank-dense" :data-sheet="`${groupNama} - Saldo RK`">
         <colgroup>
-          <col style="width:45px"><col style="width:88px"><col style="width:82px"><col style="width:82px"><col style="width:69px"><col style="width:56px">
+          <col style="width:38px"><col style="width:76px"><col style="width:82px"><col style="width:80px"><col style="width:58px"><col style="width:86px"><col style="width:50px">
         </colgroup>
-        <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th></th></tr></thead>
+        <thead><tr><th>PIC</th><th>Rekening</th><th class="num">Saldo</th><th class="num">Bisa Dipakai</th><th>Ket</th><th>Tgl Update</th><th></th></tr></thead>
         <tbody>
-          <tr v-if="!balances.length"><td colspan="6" class="empty-state">Belum ada rekening.</td></tr>
+          <tr v-if="!balances.length"><td colspan="7" class="empty-state">Belum ada rekening.</td></tr>
           <tr v-for="b in balances" :key="b.id" :style="{ background: groupWarna ? lightenColor(groupWarna) : '' }">
             <td>
               <select :value="b.pic" @change="patchBalance(b, 'pic', ($event.target as HTMLSelectElement).value || null)">
@@ -126,6 +138,7 @@ function sumNominal(rows: { nominal: number }[]) {
             <td class="num"><input type="text" class="saldo-locked-input" :value="b.saldo.toLocaleString('id-ID')" style="text-align:right;" :disabled="b.locked" :title="b.locked ? 'Saldo digembok' : ''" @focus="($event.target as HTMLInputElement).select()" @change="patchBalance(b, 'saldo', parseNum(($event.target as HTMLInputElement).value))" /></td>
             <td class="num" :title="'Rumus: saldo > 12jt ? bulatkan ke juta - 12jt : 0'">{{ (b.bisaDipakai ?? 0).toLocaleString('id-ID') }}</td>
             <td><input type="text" :value="b.ket" class="cell-edit" @change="patchBalance(b, 'ket', ($event.target as HTMLInputElement).value)" /></td>
+            <td class="num" style="font-size:10px;white-space:nowrap;" :title="b.updatedAt || ''">{{ fmtUpdatedAt(b.updatedAt) }}</td>
             <td class="row-actions">
               <span class="row-lock" :class="{ 'is-locked': b.locked }" :title="b.locked ? 'Terkunci — klik buat buka' : 'Terbuka — klik buat kunci'" @click="toggleRowLock(b)">{{ b.locked ? '🔒' : '🔓' }}</span>
               <span class="row-del" @click="deleteBalance(b.id)">✕</span>
@@ -135,7 +148,7 @@ function sumNominal(rows: { nominal: number }[]) {
             <td colspan="2">TOTAL</td>
             <td class="num">{{ subtotalBalances(balances).saldo.toLocaleString('id-ID') }}</td>
             <td class="num">{{ subtotalBalances(balances).bisaDipakai.toLocaleString('id-ID') }}</td>
-            <td colspan="2"></td>
+            <td colspan="3"></td>
           </tr>
         </tbody>
       </table>

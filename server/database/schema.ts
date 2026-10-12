@@ -59,7 +59,10 @@ export const bankBalances = sqliteTable('bank_balances', {
   ket: text('ket').default(''),
   grup: text('grup').references(() => bankGroups.id), // FK to bank_groups.id (nullable = "Tanpa Grup")
   // Gembok per baris — kalau true, kolom Saldo baris ini gak bisa diedit (termasuk lewat Nol-in Semua Saldo).
-  locked: integer('locked', { mode: 'boolean' }).notNull().default(false)
+  locked: integer('locked', { mode: 'boolean' }).notNull().default(false),
+  // Kapan Saldo baris ini terakhir di-update manual (ISO datetime) — bukan ke-update pas
+  // "Nol-in Semua Saldo" (itu aksi reset, bukan update beneran dari manusia).
+  updatedAt: text('updated_at')
 })
 
 // ---------- Rincian Bank ----------
