@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { parseNum } from '~/utils/format'
+import { fmtNum, parseNum } from '~/utils/format'
 import { findHeaderRow } from '~/utils/sheetImport'
 
 const api = useApi()
@@ -418,8 +418,8 @@ const filteredNpwps = computed(() => {
               <td class="num">
                 <input
                   class="cell-input" style="text-align:right;width:140px;"
-                  :value="a.saldoAwal ?? ''" placeholder="belum ditentukan"
-                  @change="patchAccount(a, { saldoAwal: ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value) })"
+                  :value="a.saldoAwal === null ? '' : fmtNum(a.saldoAwal)" placeholder="belum ditentukan"
+                  @change="patchAccount(a, { saldoAwal: ($event.target as HTMLInputElement).value.trim() === '' ? null : parseNum(($event.target as HTMLInputElement).value) })"
                 />
               </td>
               <td>

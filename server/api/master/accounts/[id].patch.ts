@@ -15,5 +15,8 @@ export default defineEventHandler(async (event) => {
   if (body.noBankFormatKredit !== undefined) patch.noBankFormatKredit = String(body.noBankFormatKredit).trim() || null
   if (Object.keys(patch).length === 0) throw createError({ statusCode: 400, statusMessage: 'Gak ada field yang diupdate.' })
   await db.update(bankAccounts).set(patch).where(eq(bankAccounts.id, id))
+  // Saldo Awal itu baseline perhitungan saldo berjalan di Rincian Bank — begitu diubah,
+  // seluruh kolom saldo transaksi rekening ini (dari yang paling lama) harus dihitung ulang.
+  if ('saldoAwal' in patch) await recomputeAccountSaldo(id)
   return { ok: true }
 })
