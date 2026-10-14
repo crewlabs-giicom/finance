@@ -205,7 +205,6 @@ async function onExport() {
                   title="Pilih semua"
                 />
               </th>
-              <th rowspan="2" title="Status tag &quot;21 BP&quot; di Rincian Bank/List Pajak">PPh 21</th>
               <th rowspan="2">No</th>
               <th colspan="4" style="text-align:center;">Data Penerima</th>
               <th rowspan="2">No. Transaksi</th>
@@ -223,7 +222,6 @@ async function onExport() {
           <tbody>
             <tr v-for="(r, i) in sec.rows" :key="r.id">
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
-              <td class="num"><input type="checkbox" :checked="parseTagList(r.tags).includes('21 BP')" disabled /></td>
               <td>{{ i + 1 }}</td>
               <td>{{ npwpOf(r.npwpId)?.namaNpwp || '-' }}</td>
               <td>
@@ -249,7 +247,7 @@ async function onExport() {
               <td><input class="cell-input" :value="r.lampiranFakturPajak" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { lampiranFakturPajak: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
             <tr class="grand-total-row">
-              <td colspan="10" style="text-align:right;">TOTAL</td>
+              <td colspan="9" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + (r.debet || 0), 0)) }}</td>
               <td></td>
               <td class="num">{{ fmtRp(sec.rows.reduce((a, r) => a + jumlahPph(r), 0)) }}</td>

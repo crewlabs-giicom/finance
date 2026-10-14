@@ -114,15 +114,17 @@ const visibleSections = computed(() =>
 
 /** Mirror computeTagFormula() di server/utils/tagSync.ts — beberapa tag pajak bisa
  *  aktif sekaligus, tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. Semua
- *  tarif langsung dari nilai Debet (bukan dari DPP/Debet-dibagi-11%). */
-function computeTagFormula(tagList: string[], debet: number) {
-  const d = debet || 0
-  let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null
+ *  tarif dihitung dari DPP (bukan Debet langsung). PPN cuma dihitung kalau ada tag
+ *  "PM" — tag pajak lain (PPH 23/21 BP/dst) gak otomatis ngisi PPN. */
+function computeTagFormula(tagList: string[], dpp: number) {
+  const d = dpp || 0
+  let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null, ppn: number | null = null
   if (tagList.includes('PPH 23')) pph23 = Math.round(d * 0.02)
   if (tagList.includes('PP 23')) pph23_4a2 = Math.round(d * 0.005)
   if (tagList.includes('Final') || tagList.includes('PPH 4')) pph23_4a2 = Math.round(d * 0.10)
   if (tagList.includes('21 BP')) pph21bp = Math.round(d * 0.025)
-  return { pph23, pph23_4a2, pph21bp }
+  if (tagList.includes('PM')) ppn = Math.round(d * 0.11)
+  return { pph23, pph23_4a2, pph21bp, ppn }
 }
 
 // -- klik buat pilih tag, bisa lebih dari satu (disimpen comma-separated), pola sama kayak Rincian Bank --
@@ -149,7 +151,7 @@ async function toggleTag(tagName: string) {
   const i = list.indexOf(tagName)
   if (i > -1) list.splice(i, 1)
   else list.push(tagName)
-  await patchRow(r, { tags: list.join(','), ...computeTagFormula(list, r.debet) })
+  await patchRow(r, { tags: list.join(','), ...computeTagFormula(list, r.dpp ?? r.debet) })
 }
 
 async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
@@ -163,18 +165,21 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
   }
 }
 
-/** Ubah Debet manual -> recompute pajak dari tag yang lagi aktif di baris itu, sama
- *  kayak toggleTag() di atas, biar PPh 23/Final/PPh 21 BP selalu ngikutin Debet terbaru.
- *  DPP & PPN juga ikut disamain/dihitung dari Debet (tetap bisa diedit manual belakangan). */
+/** Ubah Debet manual -> DPP disamain ke Debet (keputusan: DPP = Debet langsung), terus
+ *  PPh 23/Final/PPh 21 BP (dan PPN, khusus kalau ada tag "PM") dihitung ulang dari DPP
+ *  itu (tetap bisa diedit manual belakangan per kolom). */
 async function onDebetChange(r: PpnRow, value: string) {
   const debet = parseNum(value)
-  await patchRow(r, { debet, dpp: debet, ppn: Math.round(debet * 0.11), ...computeTagFormula(parseTagList(r.tags), debet) })
+  const dpp = debet
+  await patchRow(r, { debet, dpp, ...computeTagFormula(parseTagList(r.tags), dpp) })
 }
 
-/** Ubah DPP manual -> PPN otomatis 11% dari DPP (tetap bisa diedit manual belakangan). */
+/** Ubah DPP manual -> PPh 23/Final/PPh 21 BP (dan PPN, khusus kalau ada tag "PM") ikut
+ *  dihitung ulang dari DPP (basis perhitungan semua pajak), bukan dari Debet lagi.
+ *  Tetap bisa diedit manual belakangan. */
 async function onDppChange(r: PpnRow, value: string) {
   const dpp = parseNum(value)
-  await patchRow(r, { dpp, ppn: Math.round(dpp * 0.11) })
+  await patchRow(r, { dpp, ...computeTagFormula(parseTagList(r.tags), dpp) })
 }
 
 async function addRow(groupId: string | null) {
@@ -264,6 +269,7 @@ async function onUpload(evt: Event) {
       if (!tanggal) { invalid++; continue }
 
       const debet = parseSheetNumber(at('debet'))
+      const dpp = debet // DPP awal disamain Debet, bisa diedit manual belakangan di tabel
       const tag = String(at('tags') || '').trim()
       const cand = {
         groupId: uploadGroup.value || null,
@@ -273,9 +279,9 @@ async function onUpload(evt: Event) {
         description: String(at('description') || '').trim(),
         tags: tag,
         debet,
-        dpp: debet,
+        dpp,
         kredit: parseSheetNumber(at('kredit')),
-        ...computeTagFormula(tag ? [tag] : [], debet)
+        ...computeTagFormula(tag ? [tag] : [], dpp)
       }
       const key = dupKey(cand as PpnRow)
       if (seen.has(key)) { dup++; continue }

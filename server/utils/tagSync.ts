@@ -16,15 +16,18 @@ export function parseTagList(raw: string | null | undefined): string[] {
 }
 
 /** Beberapa tag pajak bisa aktif sekaligus — tiap tag ngisi kolom pajaknya sendiri, gak
- *  saling timpa. Semua tarif langsung dari nilai Debet (bukan dari DPP/Debet-dibagi-11%). */
-function computeTagFormula(tags: string[], debet: number) {
-  const d = debet || 0
-  let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null
+ *  saling timpa. Semua tarif dihitung dari DPP (mirror computeTagFormula() di
+ *  app/pages/list-pajak.vue — DPP = basis perhitungan semua pajak, bukan Debet langsung).
+ *  PPN cuma dihitung kalau ada tag "PM" — tag pajak lain gak otomatis ngisi PPN. */
+function computeTagFormula(tags: string[], dpp: number) {
+  const d = dpp || 0
+  let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null, ppn: number | null = null
   if (tags.includes('PPH 23')) pph23 = Math.round(d * 0.02)
   if (tags.includes('PP 23')) pph23_4a2 = Math.round(d * 0.005)
   if (tags.includes('Final') || tags.includes('PPH 4')) pph23_4a2 = Math.round(d * 0.10)
   if (tags.includes('21 BP')) pph21bp = Math.round(d * 0.025)
-  return { pph23, pph23_4a2, pph21bp }
+  if (tags.includes('PM')) ppn = Math.round(d * 0.11)
+  return { pph23, pph23_4a2, pph21bp, ppn }
 }
 
 /** `code`/`note` ikut di-auto-copy dari noBankManual tiap sync (lihat di bawah) — jadi
@@ -62,16 +65,16 @@ export async function syncTagDerivedRows(txnId: string) {
 
   const [existingPpn] = await db.select().from(ppnRows).where(eq(ppnRows.sourceTxnId, txnId)).limit(1)
   if (isPajak) {
-    const formula = computeTagFormula(tagList, amount)
-    const ppn = Math.round(amount * 0.11)
+    const dpp = amount // DPP List Pajak = Debet langsung (keputusan user), basis semua pajak
+    const formula = computeTagFormula(tagList, dpp) // formula.ppn ikut keisi, cuma kalau ada tag "PM"
     if (existingPpn) {
       await db.update(ppnRows).set({
-        tanggal: t.tanggal, description: desc, debet: amount, dpp: amount, ppn, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula
+        tanggal: t.tanggal, description: desc, debet: amount, dpp, tags: t.tag || '', groupId, code: t.noBankManual || '', ...formula
       }).where(eq(ppnRows.id, existingPpn.id))
     } else {
       await db.insert(ppnRows).values({
         id: genId('ppn'), sourceTxnId: txnId, groupId, tanggal: t.tanggal, code: t.noBankManual || '',
-        description: desc, store: '', tags: t.tag || '', debet: amount, dpp: amount, ppn, kredit: 0, note: '',
+        description: desc, store: '', tags: t.tag || '', debet: amount, dpp, kredit: 0, note: '',
         ketStatus: 'Uncredited', ...formula
       })
     }
