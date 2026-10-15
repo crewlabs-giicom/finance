@@ -146,6 +146,19 @@ async function onDppChange(r: PpnRow, value: string) {
   await patchRow(r, { dpp, ppn: Math.round(dpp * 0.11) })
 }
 
+/** Baris manual baru — tag dipaksa "PM" biar langsung muncul di List PM (filter matchesTag). */
+async function addRow(groupId: string | null) {
+  try {
+    const created = await api<PpnRow>('/api/ppn', {
+      method: 'POST',
+      body: { groupId, tanggal: `${fromYm.value}-01`, tags: 'PM', ketStatus: 'Uncredited' }
+    })
+    rows.value.push(created)
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal tambah baris.' }
+  }
+}
+
 const multi = useMultiSelect()
 const selectedIds = multi.selectedIds
 async function deleteSelected() {
@@ -168,15 +181,17 @@ async function deleteSelected() {
     : { type: 'ok', msg: `${ok} baris dihapus.` }
 }
 
-/** Duplicate lewat menu klik kanan — salin seluruh isi baris kecuali id & sumber transaksinya,
- *  hasilnya diselipin persis di bawah baris aslinya. */
+/** Duplicate lewat menu klik kanan. Urutan baris baru dihitung di server (ppnUrutanAfter,
+ *  nyisip persis di antara urutan baris sumber & baris berikutnya) jadi posisinya tetap
+ *  nempel di bawah baris sumber walau nanti di-refetch. Tag dipaksa jadi "PM" doang lewat
+ *  `overrides` (buang tag pajak lain yang mungkin ikut ke-copy dari baris campuran) — baris
+ *  hasil duplicate di List PM murni milik List PM, gak boleh ikut nongol di List Pajak. */
 async function duplicateRow(id: string) {
   const srcIndex = rows.value.findIndex(r => r.id === id)
   rowColors.close()
   if (srcIndex === -1) return
-  const { id: _id, sourceTxnId: _s, ...body } = rows.value[srcIndex]!
   try {
-    const created = await api<PpnRow>('/api/ppn', { method: 'POST', body })
+    const created = await api<PpnRow>(`/api/ppn/${id}/duplicate`, { method: 'POST', body: { overrides: { tags: 'PM' } } })
     rows.value.splice(srcIndex + 1, 0, created)
   } catch (e: any) {
     status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal duplicate.' }
@@ -309,7 +324,8 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
       <div class="group-head">
         <span class="group-dot" :style="{ background: sec.warna }" />
         {{ sec.nama }}
-        <div v-if="selectedIds.size" class="no-export" style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+        <button class="btn secondary no-export" style="margin-left:auto;" @click="addRow(sec.id)">+ Baris</button>
+        <div v-if="selectedIds.size" class="no-export" style="display:flex;align-items:center;gap:6px;">
           <span class="gm-label">Set Keterangan ({{ selectedIds.size }} terpilih):</span>
           <select v-model="bulkKet" style="width:140px;">
             <option value="Uncredited">Uncredited</option>

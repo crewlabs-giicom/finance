@@ -24,10 +24,13 @@ export function parseNum(str: unknown): number {
   return isNaN(n) ? 0 : n
 }
 
+/** Format tanggal baku di seluruh sistem: DD-MM-YYYY. */
 export function fmtTgl(iso: string | null | undefined): string {
   if (!iso) return 'belum ditentukan'
-  const d = new Date(iso + 'T00:00:00')
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+  const parts = iso.split('-')
+  if (parts.length !== 3) return 'belum ditentukan'
+  const [y, m, d] = parts
+  return `${d}-${m}-${y}`
 }
 
 export function formatIsoDate(d: Date): string {
@@ -35,16 +38,16 @@ export function formatIsoDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-/** ISO 'YYYY-MM-DD' -> 'DD/MM/YY' untuk tampilan sel tabel. */
+/** ISO 'YYYY-MM-DD' -> 'DD-MM-YYYY' untuk tampilan sel tabel — format tanggal baku di seluruh sistem. */
 export function formatDateShort(iso: string | null | undefined): string {
   if (!iso) return ''
   const parts = iso.split('-')
   if (parts.length !== 3) return ''
   const [y, m, d] = parts
-  return `${d}/${m}/${y!.slice(2)}`
+  return `${d}-${m}-${y}`
 }
 
-/** Kebalikan formatDateShort — menerima 'D/M/YY', 'DD-MM-YYYY', dst. null kalau tidak valid. */
+/** Kebalikan formatDateShort — menerima 'DD-MM-YYYY', 'D/M/YY', dst (format lama tetap kebaca). null kalau tidak valid. */
 export function parseDateShort(str: string): string | null {
   const m = str.trim().match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/)
   if (!m) return null

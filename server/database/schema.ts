@@ -154,7 +154,12 @@ export const ppnRows = sqliteTable('ppn_rows', {
   // Dropdown "Keterangan" khusus List PM — sengaja BUKAN `note` (field itu dipakai List
   // Pajak sebagai "Catatan" bebas, gak boleh kepaksa cuma 2 pilihan).
   ketStatus: text('ket_status'), // 'Uncredited' | 'Credited'
-  ketKategori: text('ket_kategori') // nama dari pm_kategori_master, cuma keisi kalau ketStatus = 'Credited'
+  ketKategori: text('ket_kategori'), // nama dari pm_kategori_master, cuma keisi kalau ketStatus = 'Credited'
+  // Tie-breaker urutan tampilan List Pajak/List PM (pola sama kayak bankTxns.urutan) — baris
+  // baru (tambah manual / auto-sync dari Rincian Bank) selalu paling besar; baris hasil
+  // Duplicate disisipin di antara urutan sumber dan baris berikutnya (lihat ppnOrder.ts),
+  // biar posisinya gak "mencar" begitu di-refetch. Dipakai di ORDER BY GET /api/ppn.
+  urutan: real('urutan').notNull().default(0)
 }, (t) => ({
   groupIdx: index('ppn_rows_group_idx').on(t.groupId),
   sourceTxnIdx: index('ppn_rows_source_txn_idx').on(t.sourceTxnId),

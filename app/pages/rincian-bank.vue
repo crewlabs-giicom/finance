@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { autoGrow, defaultPeriod, fmtRp, parseTagList, lightenColor } from '~/utils/format'
+import { autoGrow, defaultPeriod, fmtRp, formatDateShort, parseTagList, lightenColor } from '~/utils/format'
 
 const api = useApi()
 const { pics, load: loadPics } = usePics()
@@ -490,7 +490,7 @@ async function onExport() {
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(t.id)" @change="multi.toggle(t.id)" /></td>
               <td>{{ exporting ? i + 1 : (currentPage - 1) * PAGE_SIZE + i + 1 }}</td>
-              <td>{{ t.tanggal }}</td>
+              <td>{{ formatDateShort(t.tanggal) }}</td>
               <td style="min-width:220px;white-space:normal;word-break:break-word;">{{ t.transaksi }}</td>
               <td>
                 <input type="text" :value="t.cabang" class="cell-edit" style="width:60px;" @change="patchTxn(t, 'cabang', ($event.target as HTMLInputElement).value)" />

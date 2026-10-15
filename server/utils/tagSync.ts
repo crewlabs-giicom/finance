@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { bankTxns, bankAccounts, ppnRows, entRows } from '../database/schema'
+import { nextPpnUrutan } from './ppnOrder'
 
 // Satu transaksi boleh punya lebih dari satu tag (disimpen comma-separated di kolom
 // "tag", mis. "PPH 23,Ent"). Tag "PPH 23" / "PP 23" / "PPH 4" / "21 BP" / "Final" / "PM" di
@@ -75,7 +76,7 @@ export async function syncTagDerivedRows(txnId: string) {
       await db.insert(ppnRows).values({
         id: genId('ppn'), sourceTxnId: txnId, groupId, tanggal: t.tanggal, code: t.noBankManual || '',
         description: desc, store: '', tags: t.tag || '', debet: amount, dpp, kredit: 0, note: '',
-        ketStatus: 'Uncredited', ...formula
+        ketStatus: 'Uncredited', urutan: await nextPpnUrutan(), ...formula
       })
     }
   } else if (existingPpn) {

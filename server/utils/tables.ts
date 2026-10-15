@@ -16,6 +16,7 @@ export const crud = {
     table: ppnRows,
     idPrefix: 'ppn',
     dateField: 'tanggal',
+    orderField: 'urutan',
     required: ['tanggal'],
     fields: {
       sourceTxnId: 'ref', groupId: 'ref', tanggal: 'date', code: 'str', store: 'str',

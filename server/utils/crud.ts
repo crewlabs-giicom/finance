@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 /**
@@ -48,15 +48,24 @@ export type CrudOptions = {
   dateField?: string
   /** Nilai default tambahan waktu create, di luar apa yang dikirim client. */
   defaults?: Record<string, unknown>
+  /** Kolom tie-breaker urutan tampilan (mis. "urutan") — kalau diisi, `list` otomatis
+   *  di-ORDER BY kolom ini dan `create` otomatis ngisi nilai paling besar+1, biar baris
+   *  baru selalu nongol di paling bawah dan urutannya stabil tiap di-refetch. */
+  orderField?: string
 }
 
 export function defineCrud(opts: CrudOptions) {
-  const { table, idPrefix, fields, required = [], dateField, defaults = {} } = opts
+  const { table, idPrefix, fields, required = [], dateField, defaults = {}, orderField } = opts
   const cols = table as unknown as Record<string, any>
 
   async function rowById(id: string) {
     const [row] = await db.select().from(table).where(eq(cols.id, id)).limit(1)
     return row as Record<string, any> | undefined
+  }
+
+  async function nextOrderValue(): Promise<number> {
+    const [row] = await db.select({ max: sql<number>`coalesce(max(${cols[orderField!]}), 0)` }).from(table)
+    return (row?.max || 0) + 1
   }
 
   /** Kunci periode dicek pada tanggal LAMA dan tanggal BARU — memindahkan baris keluar/masuk periode terkunci sama-sama dilarang. */
@@ -85,8 +94,9 @@ export function defineCrud(opts: CrudOptions) {
           conditions.push(eq(cols[name], String(q[name])))
         }
       }
-      if (!conditions.length) return await db.select().from(table)
-      return await db.select().from(table).where(and(...conditions))
+      let query: any = conditions.length ? db.select().from(table).where(and(...conditions)) : db.select().from(table)
+      if (orderField) query = query.orderBy(asc(cols[orderField]))
+      return await query
     }),
 
     create: defineEventHandler(async (event) => {
@@ -99,6 +109,7 @@ export function defineCrud(opts: CrudOptions) {
       await assertEditable(undefined, dateField ? body[dateField] : undefined)
 
       const row: Record<string, unknown> = { id: genId(idPrefix), ...defaults }
+      if (orderField) row[orderField] = await nextOrderValue()
       for (const [name, kind] of Object.entries(fields)) {
         if (body[name] !== undefined) row[name] = coerce(kind, body[name])
       }

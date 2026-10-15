@@ -102,7 +102,7 @@ function patchDateShort(kind: 'hutang' | 'bayar', row: any, field: string, rawTe
   const trimmed = rawText.trim()
   if (!trimmed) { patchRow(kind, row, field, null); return }
   const iso = parseDateShort(trimmed)
-  if (!iso) { alert('Format tanggal salah. Pakai dd/mm/yy, misal 25/09/26.'); return }
+  if (!iso) { alert('Format tanggal salah. Pakai dd-mm-yyyy, misal 25-09-2026.'); return }
   patchRow(kind, row, field, iso)
 }
 function sumNominal(rows: { nominal: number }[]) {
@@ -233,10 +233,10 @@ function sumNominal(rows: { nominal: number }[]) {
             </td>
             <td class="num"><input type="text" :value="h.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('hutang', h, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
             <td><input type="text" :value="h.rate" class="cell-edit" style="width:44px;" @change="patchRow('hutang', h, 'rate', ($event.target as HTMLInputElement).value)" /></td>
-            <td><input type="text" :value="formatDateShort(h.tglPinjam)" placeholder="dd/mm/yy" @change="patchDateShort('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value)" /></td>
+            <td><input type="text" :value="formatDateShort(h.tglPinjam)" placeholder="dd-mm-yyyy" @change="patchDateShort('hutang', h, 'tglPinjam', ($event.target as HTMLInputElement).value)" /></td>
             <td>
               <div style="display:flex;flex-direction:column;gap:2px;">
-                <input type="text" :value="formatDateShort(h.jatuhTempo)" placeholder="dd/mm/yy" @change="patchDateShort('hutang', h, 'jatuhTempo', ($event.target as HTMLInputElement).value)" />
+                <input type="text" :value="formatDateShort(h.jatuhTempo)" placeholder="dd-mm-yyyy" @change="patchDateShort('hutang', h, 'jatuhTempo', ($event.target as HTMLInputElement).value)" />
                 <span v-if="h.jatuhTempo && h.jatuhTempo < today" class="pill overdue" style="margin-left:0;">Lewat tempo</span>
               </div>
             </td>
@@ -277,8 +277,8 @@ function sumNominal(rows: { nominal: number }[]) {
             title="Klik kanan buat warnain baris"
           >
             <td class="num"><input type="text" :value="b.nominal.toLocaleString('id-ID')" style="width:120px;text-align:right;" @change="patchRow('bayar', b, 'nominal', parseNum(($event.target as HTMLInputElement).value))" /></td>
-            <td><input type="text" :value="formatDateShort(b.tglBayar)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value)" /></td>
-            <td><input type="text" :value="formatDateShort(b.tglPesan)" placeholder="dd/mm/yy" @change="patchDateShort('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value)" /></td>
+            <td><input type="text" :value="formatDateShort(b.tglBayar)" placeholder="dd-mm-yyyy" @change="patchDateShort('bayar', b, 'tglBayar', ($event.target as HTMLInputElement).value)" /></td>
+            <td><input type="text" :value="formatDateShort(b.tglPesan)" placeholder="dd-mm-yyyy" @change="patchDateShort('bayar', b, 'tglPesan', ($event.target as HTMLInputElement).value)" /></td>
             <td>
               <textarea
                 :ref="(el) => autoGrow(el)" class="cell-edit wrap-textarea" rows="1"

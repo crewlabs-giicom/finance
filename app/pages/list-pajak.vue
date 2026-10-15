@@ -216,15 +216,16 @@ async function deleteSelected() {
     : { type: 'ok', msg: `${ok} baris dihapus.` }
 }
 
-/** Duplicate lewat menu klik kanan — salin seluruh isi baris kecuali id & sumber transaksinya.
- *  Hasil duplicate diselipin persis di bawah baris aslinya, bukan ke ujung bawah daftar. */
+/** Duplicate lewat menu klik kanan. Urutan baris baru dihitung di server (ppnUrutanAfter,
+ *  nyisip persis di antara urutan baris sumber & baris berikutnya) jadi posisinya tetap
+ *  nempel di bawah baris sumber walau nanti di-refetch (ganti filter, reload, dst) —
+ *  bukan cuma kebetulan bener sesaat gara-gara splice manual di array lokal. */
 async function duplicateRow(id: string) {
   const srcIndex = rows.value.findIndex(r => r.id === id)
   rowColors.close()
   if (srcIndex === -1) return
-  const { id: _id, sourceTxnId: _s, ...body } = rows.value[srcIndex]!
   try {
-    const created = await api<PpnRow>('/api/ppn', { method: 'POST', body })
+    const created = await api<PpnRow>(`/api/ppn/${id}/duplicate`, { method: 'POST' })
     rows.value.splice(srcIndex + 1, 0, created)
   } catch (e: any) {
     status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal duplicate.' }
