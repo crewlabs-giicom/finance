@@ -11,7 +11,10 @@ export function fmtRp(n: number | null | undefined): string {
 export function fmtNum(n: number | null | undefined, zeroAsBlank = false): string {
   if (n === null || n === undefined || isNaN(n)) return ''
   if (zeroAsBlank && n === 0) return ''
-  return Math.round(n).toLocaleString('id-ID')
+  // Nilai bulat (mayoritas nominal di app ini) tampil tanpa desimal kayak dulu;
+  // nilai yang beneran punya pecahan (mis. Saldo Awal) gak lagi kepotong jadi bulat.
+  const hasDecimal = Math.abs(n - Math.round(n)) > 1e-9
+  return n.toLocaleString('id-ID', hasDecimal ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 })
 }
 
 /** Terima input user gaya Indonesia ("1.234.567,89") maupun angka polos. */
