@@ -66,6 +66,7 @@ function matchesTag(r: PpnRow) {
 function npwpOf(id: string | null) {
   return npwps.value.find(n => n.id === id)
 }
+const npwpOptions = computed(() => npwps.value.map(n => ({ id: n.id, label: n.namaNpwp })))
 
 /** Dropdown "Keterangan" sempat 2 tingkat (Status "Credited" + Kategori terpisah) sebelum
  *  disederhanain jadi 1 dropdown langsung (Uncredited / nama kategori). Baris lama yang
@@ -383,7 +384,15 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                   @change="onNpwpNumberChange(r, ($event.target as HTMLInputElement).value)"
                 />
               </td>
-              <td>{{ npwpOf(r.npwpId)?.namaNpwp || '-' }}</td>
+              <td style="min-width:220px;">
+                <SearchSelect
+                  :model-value="r.npwpId || ''"
+                  :options="npwpOptions"
+                  :disabled="isLocked(r.tanggal)"
+                  placeholder="-"
+                  @update:model-value="(v) => patchRow(r, { npwpId: v || null })"
+                />
+              </td>
               <td><input class="cell-input" :value="r.noInvoice" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { noInvoice: ($event.target as HTMLInputElement).value })" /></td>
               <td>
                 <input type="date" class="cell-input" :value="r.tanggalFp" :disabled="isLocked(r.tanggal)"
