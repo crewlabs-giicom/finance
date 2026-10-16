@@ -506,7 +506,7 @@ const filteredNpwps = computed(() => {
             <span class="chip-del" @click="deleteTag(t.id)">✕</span>
           </span>
         </div>
-        <p class="hint">Klik nama tag buat edit. Tag "PPH 23", "PP 23", "PPH 4", "21 BP", "Final", "PM", dan "Ent" dipakai logic otomatis sistem (List Pajak/Entertainment) — gak bisa diganti nama.</p>
+        <p class="hint">Klik nama tag buat edit. Tag "PPH 23", "PP 23", "PPH 4", "21 BP", "Final", "PM", "Ent", "PPH 23 GU", "PP 23 GU", "FINAL GU", dan "21 GU" dipakai logic otomatis sistem (List Pajak/Entertainment) — gak bisa diganti nama.</p>
       </div>
     </div>
 

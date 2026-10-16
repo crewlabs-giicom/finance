@@ -92,7 +92,7 @@ function matchesSearch(r: PpnRow) {
 
 // Tag "PM" dikhususkan buat List PM — kalau sendirian (gak dibarengin tag pajak
 // beneran kayak PPH 23/21 BP/dst), baris itu disembunyiin dari List Pajak.
-const REAL_PAJAK_TAGS = ['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final']
+const REAL_PAJAK_TAGS = ['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PPH 23 GU', 'PP 23 GU', 'FINAL GU', '21 GU']
 function isPmOnly(r: PpnRow) {
   const list = parseTagList(r.tags)
   return list.includes('PM') && !list.some(t => REAL_PAJAK_TAGS.includes(t))
@@ -112,17 +112,39 @@ const visibleSections = computed(() =>
     .filter(s => s.rows.length)
 )
 
+/** Mirror GU_RATES/computeGrossUpDpp() di server/utils/tagSync.ts — WAJIB diubah
+ *  sinkron di dua tempat. Rate GU SAMA PERSIS rate non-GU pasangannya di
+ *  computeTagFormula di bawah — bedanya DPP dihitung mundur dari Debet (gross-up:
+ *  DPP = Debet / (1 - rate)), bukan disamain langsung ke Debet. Kalau >1 tag GU
+ *  aktif bareng (jarang kejadian praktik), tag pertama yang match di GU_RATES
+ *  menang — deterministik, bukan undefined behavior. */
+const GU_RATES: [tag: string, rate: number][] = [
+  ['PPH 23 GU', 0.02],
+  ['PP 23 GU', 0.005],
+  ['FINAL GU', 0.10],
+  ['21 GU', 0.025]
+]
+function computeGrossUpDpp(tagList: string[], debet: number): number {
+  const d = debet || 0
+  for (const [tag, rate] of GU_RATES) {
+    if (tagList.includes(tag)) return Math.round(d / (1 - rate))
+  }
+  return d
+}
+
 /** Mirror computeTagFormula() di server/utils/tagSync.ts — beberapa tag pajak bisa
  *  aktif sekaligus, tiap tag ngisi kolom pajaknya sendiri, gak saling timpa. Semua
  *  tarif dihitung dari DPP (bukan Debet langsung). PPN cuma dihitung kalau ada tag
- *  "PM" — tag pajak lain (PPH 23/21 BP/dst) gak otomatis ngisi PPN. */
+ *  "PM" — tag pajak lain (PPH 23/21 BP/dst) gak otomatis ngisi PPN. Tag "... GU"
+ *  ngisi kolom pajak yang SAMA kayak pasangan non-GU-nya (GU cuma ngaruh ke DPP,
+ *  lihat computeGrossUpDpp — rate pajak-dari-DPP di sini tetap sama). */
 function computeTagFormula(tagList: string[], dpp: number) {
   const d = dpp || 0
   let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null, ppn: number | null = null
-  if (tagList.includes('PPH 23')) pph23 = Math.round(d * 0.02)
-  if (tagList.includes('PP 23')) pph23_4a2 = Math.round(d * 0.005)
-  if (tagList.includes('Final') || tagList.includes('PPH 4')) pph23_4a2 = Math.round(d * 0.10)
-  if (tagList.includes('21 BP')) pph21bp = Math.round(d * 0.025)
+  if (tagList.includes('PPH 23') || tagList.includes('PPH 23 GU')) pph23 = Math.round(d * 0.02)
+  if (tagList.includes('PP 23') || tagList.includes('PP 23 GU')) pph23_4a2 = Math.round(d * 0.005)
+  if (tagList.includes('Final') || tagList.includes('PPH 4') || tagList.includes('FINAL GU')) pph23_4a2 = Math.round(d * 0.10)
+  if (tagList.includes('21 BP') || tagList.includes('21 GU')) pph21bp = Math.round(d * 0.025)
   if (tagList.includes('PM')) ppn = Math.round(d * 0.11)
   return { pph23, pph23_4a2, pph21bp, ppn }
 }
@@ -151,7 +173,13 @@ async function toggleTag(tagName: string) {
   const i = list.indexOf(tagName)
   if (i > -1) list.splice(i, 1)
   else list.push(tagName)
-  await patchRow(r, { tags: list.join(','), ...computeTagFormula(list, r.dpp ?? r.debet) })
+
+  // Toggle tag GU (ON/OFF) -> DPP wajib direcompute dari Debet (gross-up kalau abis
+  // toggle masih ada tag GU aktif, atau balik ke Debet langsung kalau udah gak ada).
+  // Toggle tag lain -> DPP yang udah diedit manual user gak diutak-atik.
+  const isGuToggle = GU_RATES.some(([tag]) => tag === tagName)
+  const dpp = isGuToggle ? computeGrossUpDpp(list, r.debet) : (r.dpp ?? r.debet)
+  await patchRow(r, { tags: list.join(','), dpp, ...computeTagFormula(list, dpp) })
 }
 
 async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
@@ -165,13 +193,15 @@ async function patchRow(r: PpnRow, patch: Partial<PpnRow>) {
   }
 }
 
-/** Ubah Debet manual -> DPP disamain ke Debet (keputusan: DPP = Debet langsung), terus
- *  PPh 23/Final/PPh 21 BP (dan PPN, khusus kalau ada tag "PM") dihitung ulang dari DPP
- *  itu (tetap bisa diedit manual belakangan per kolom). */
+/** Ubah Debet manual -> DPP disamain ke Debet (keputusan: DPP = Debet langsung),
+ *  KECUALI baris ditag salah satu tag GU (DPP di-gross-up mundur, lihat
+ *  computeGrossUpDpp). PPh 23/Final/PPh 21 BP (dan PPN, khusus kalau ada tag "PM")
+ *  dihitung ulang dari DPP itu (tetap bisa diedit manual belakangan per kolom). */
 async function onDebetChange(r: PpnRow, value: string) {
   const debet = parseNum(value)
-  const dpp = debet
-  await patchRow(r, { debet, dpp, ...computeTagFormula(parseTagList(r.tags), dpp) })
+  const tagList = parseTagList(r.tags)
+  const dpp = computeGrossUpDpp(tagList, debet)
+  await patchRow(r, { debet, dpp, ...computeTagFormula(tagList, dpp) })
 }
 
 /** Ubah DPP manual -> PPh 23/Final/PPh 21 BP (dan PPN, khusus kalau ada tag "PM") ikut
@@ -233,14 +263,47 @@ async function duplicateRow(id: string) {
 }
 
 // -- import Excel --
+// Kolom "NPWP" (nama) SENGAJA gak didaftarin sebagai alias sendiri di HEADERS --
+// namanya cuma "NPWP" doang, yang bakal collide (ke-cocokin dobel) sama alias
+// "No. NPWP" karena matching-nya longgar (substring dua arah, lihat detectHeaderMap
+// di utils/sheetImport.ts). Makanya nama NPWP diambil dari KOLOM TEPAT DI SEBELAH
+// KANAN kolom "No. NPWP" (sesuai urutan template di atas), bukan lewat alias.
 const HEADERS = {
   tanggal: ['DATE', 'TANGGAL'],
-  code: ['CODE', 'KODE'],
+  code: ['CODE', 'KODE', 'NO BANK'],
   store: ['STORE', 'TOKO'],
   description: ['DESCRIPTION', 'DESKRIPSI', 'KETERANGAN'],
   tags: ['TAGS', 'TAG'],
   debet: ['DEBET', 'DEBIT'],
-  kredit: ['KREDIT', 'CREDIT']
+  kredit: ['KREDIT', 'CREDIT'],
+  noNpwp: ['NO. NPWP', 'NO NPWP', 'NOMOR NPWP'],
+  noInvoice: ['NO INVOICE', 'NO. INVOICE', 'NO FAKTUR'],
+  dpp: ['DPP'],
+  ppn: ['PPN'],
+  pph23: ['PPH 23', 'PPH23'],
+  final: ['FINAL', 'PPH 4'],
+  pph21bp: ['PPH 21 BP', 'PPH21BP', '21 BP'],
+  note: ['CATATAN', 'NOTE']
+}
+
+/** Cari NPWP yang nomornya cocok di master (case-insensitive) -- kalau belum ada,
+ *  bikin baru pakai nama dari kolom "NPWP" di sheet (gak perlu prompt() kayak edit
+ *  manual per-baris, karena import udah punya kolom nama-nya sendiri). `cache` nyegah
+ *  bikin NPWP master dobel kalau No. NPWP yang sama muncul di beberapa baris dalam
+ *  satu file import. */
+async function resolveNpwpId(noNpwpRaw: string, namaRaw: string, cache: Map<string, string | null>): Promise<string | null> {
+  const noNpwp = noNpwpRaw.trim()
+  if (!noNpwp) return null
+  const key = noNpwp.toLowerCase()
+  if (cache.has(key)) return cache.get(key)!
+
+  const existing = npwps.value.find(n => n.noNpwp.trim().toLowerCase() === key)
+  if (existing) { cache.set(key, existing.id); return existing.id }
+
+  const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp: namaRaw.trim() || noNpwp } })
+  npwps.value.push(created)
+  cache.set(key, created.id)
+  return created.id
 }
 
 const uploading = ref(false)
@@ -255,12 +318,13 @@ async function onUpload(evt: Event) {
     const sheet = await readFileRows(file, HEADERS, 3)
     const header = findHeaderRow(sheet, HEADERS, 3)
     if (!header) {
-      status.value = { type: 'err', msg: 'Header kolom tidak ketemu. File butuh kolom Date, Code, Store, Description, Tags, Debet, Kredit.' }
+      status.value = { type: 'err', msg: 'Header kolom tidak ketemu. File butuh minimal kolom Tanggal, No Bank, Description, Tags.' }
       return
     }
 
     const seen = new Set(rows.value.map(dupKey))
     const payload: Record<string, unknown>[] = []
+    const npwpCache = new Map<string, string | null>()
     let dup = 0, invalid = 0
 
     for (let i = header.index + 1; i < sheet.length; i++) {
@@ -270,8 +334,26 @@ async function onUpload(evt: Event) {
       if (!tanggal) { invalid++; continue }
 
       const debet = parseSheetNumber(at('debet'))
-      const dpp = debet // DPP awal disamain Debet, bisa diedit manual belakangan di tabel
       const tag = String(at('tags') || '').trim()
+      const tagListForRow = tag ? [tag] : []
+
+      // DPP: pakai angka dari kolom DPP kalau diisi eksplisit (kasus "input manual yang
+      // udah dihitung sendiri" kayak contoh template), kalau kosong baru fallback ke
+      // Debet (gross-up kalau ada tag GU) -- perilaku lama tetap jalan.
+      const dppCell = at('dpp')
+      const hasCell = (v: unknown) => v !== '' && v !== undefined && v !== null
+      const dpp = hasCell(dppCell) ? parseSheetNumber(dppCell) : computeGrossUpDpp(tagListForRow, debet)
+
+      // Kolom pajak (PPN/PPh 23/Final/PPh 21 BP): pakai angka dari sheet kalau diisi,
+      // kalau kosong fallback ke hasil hitung otomatis dari tag+DPP (computeTagFormula).
+      const autoFormula = computeTagFormula(tagListForRow, dpp)
+      const cellOrAuto = (v: unknown, auto: number | null) => hasCell(v) ? parseSheetNumber(v) : auto
+
+      const noNpwpColIdx = header.map['noNpwp']
+      const noNpwpRaw = String(at('noNpwp') || '').trim()
+      const npwpNamaRaw = noNpwpColIdx !== undefined ? String(r[noNpwpColIdx + 1] ?? '') : ''
+      const npwpId = await resolveNpwpId(noNpwpRaw, npwpNamaRaw, npwpCache)
+
       const cand = {
         groupId: uploadGroup.value || null,
         tanggal,
@@ -280,9 +362,15 @@ async function onUpload(evt: Event) {
         description: String(at('description') || '').trim(),
         tags: tag,
         debet,
-        dpp,
         kredit: parseSheetNumber(at('kredit')),
-        ...computeTagFormula(tag ? [tag] : [], dpp)
+        npwpId,
+        noInvoice: String(at('noInvoice') || '').trim(),
+        dpp,
+        ppn: cellOrAuto(at('ppn'), autoFormula.ppn),
+        pph23: cellOrAuto(at('pph23'), autoFormula.pph23),
+        pph23_4a2: cellOrAuto(at('final'), autoFormula.pph23_4a2),
+        pph21bp: cellOrAuto(at('pph21bp'), autoFormula.pph21bp),
+        note: String(at('note') || '').trim()
       }
       const key = dupKey(cand as PpnRow)
       if (seen.has(key)) { dup++; continue }
@@ -304,8 +392,11 @@ async function onUpload(evt: Event) {
   }
 }
 
-function dupKey(r: Pick<PpnRow, 'groupId' | 'tanggal' | 'code' | 'description' | 'debet' | 'kredit'>) {
-  return `${r.groupId}|${r.tanggal}|${r.code}|${r.description}|${r.debet}|${r.kredit}`
+// NPWP & DPP ikut jadi bagian kunci dedup -- banyak baris boleh share No Bank/Description
+// yang sama (1 transaksi bank dipecah ke beberapa NPWP/vendor, lihat template import),
+// jadi gak cukup dibedain dari groupId/tanggal/code/description/debet/kredit doang.
+function dupKey(r: Pick<PpnRow, 'groupId' | 'tanggal' | 'code' | 'description' | 'debet' | 'kredit' | 'npwpId' | 'dpp'>) {
+  return `${r.groupId}|${r.tanggal}|${r.code}|${r.description}|${r.debet}|${r.kredit}|${r.npwpId}|${r.dpp}`
 }
 
 // Kolom angka di tabel (index setelah kolom .no-export dibuang) — dipetakan ke

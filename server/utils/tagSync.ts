@@ -9,24 +9,46 @@ import { nextPpnUrutan } from './ppnOrder'
 // sinkron ke satu baris Entertainment — keduanya bisa aktif bareng buat transaksi yang
 // sama. Ganti tag / edit nominal-tanggal-keterangan transaksi otomatis update baris
 // terhubung (dilacak lewat sourceTxnId, gak pernah bikin baris dobel).
-export const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM'])
+export const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM', 'PPH 23 GU', 'PP 23 GU', 'FINAL GU', '21 GU'])
 export const ENT_TAG = 'Ent'
 
 export function parseTagList(raw: string | null | undefined): string[] {
   return (raw || '').split(',').map(s => s.trim()).filter(Boolean)
 }
 
+/** Mirror GU_RATES/computeGrossUpDpp() di app/pages/list-pajak.vue — WAJIB diubah
+ *  sinkron di dua tempat (gak ada shared module). Rate GU SAMA PERSIS rate non-GU
+ *  pasangannya di computeTagFormula di bawah — bedanya DPP dihitung mundur dari
+ *  Debet (gross-up: DPP = Debet / (1 - rate)), bukan disamain langsung ke Debet.
+ *  Kalau >1 tag GU aktif bareng (jarang kejadian praktik), tag pertama yang match
+ *  menang — deterministik, bukan undefined behavior. */
+const GU_RATES: [tag: string, rate: number][] = [
+  ['PPH 23 GU', 0.02],
+  ['PP 23 GU', 0.005],
+  ['FINAL GU', 0.10],
+  ['21 GU', 0.025]
+]
+function computeGrossUpDpp(tagList: string[], debet: number): number {
+  const d = debet || 0
+  for (const [tag, rate] of GU_RATES) {
+    if (tagList.includes(tag)) return Math.round(d / (1 - rate))
+  }
+  return d
+}
+
 /** Beberapa tag pajak bisa aktif sekaligus — tiap tag ngisi kolom pajaknya sendiri, gak
  *  saling timpa. Semua tarif dihitung dari DPP (mirror computeTagFormula() di
  *  app/pages/list-pajak.vue — DPP = basis perhitungan semua pajak, bukan Debet langsung).
- *  PPN cuma dihitung kalau ada tag "PM" — tag pajak lain gak otomatis ngisi PPN. */
+ *  PPN cuma dihitung kalau ada tag "PM" — tag pajak lain gak otomatis ngisi PPN. Tag
+ *  "... GU" ngisi kolom pajak yang SAMA kayak pasangan non-GU-nya (GU cuma ngaruh ke
+ *  DPP lewat computeGrossUpDpp — rate pajak-dari-DPP di sini tetap sama). */
 function computeTagFormula(tags: string[], dpp: number) {
   const d = dpp || 0
   let pph23: number | null = null, pph23_4a2: number | null = null, pph21bp: number | null = null, ppn: number | null = null
-  if (tags.includes('PPH 23')) pph23 = Math.round(d * 0.02)
-  if (tags.includes('PP 23')) pph23_4a2 = Math.round(d * 0.005)
-  if (tags.includes('Final') || tags.includes('PPH 4')) pph23_4a2 = Math.round(d * 0.10)
-  if (tags.includes('21 BP')) pph21bp = Math.round(d * 0.025)
+  if (tags.includes('PPH 23') || tags.includes('PPH 23 GU')) pph23 = Math.round(d * 0.02)
+  if (tags.includes('PP 23') || tags.includes('PP 23 GU')) pph23_4a2 = Math.round(d * 0.005)
+  if (tags.includes('Final') || tags.includes('PPH 4') || tags.includes('FINAL GU')) pph23_4a2 = Math.round(d * 0.10)
+  if (tags.includes('21 BP') || tags.includes('21 GU')) pph21bp = Math.round(d * 0.025)
   if (tags.includes('PM')) ppn = Math.round(d * 0.11)
   return { pph23, pph23_4a2, pph21bp, ppn }
 }
@@ -66,7 +88,7 @@ export async function syncTagDerivedRows(txnId: string) {
 
   const [existingPpn] = await db.select().from(ppnRows).where(eq(ppnRows.sourceTxnId, txnId)).limit(1)
   if (isPajak) {
-    const dpp = amount // DPP List Pajak = Debet langsung (keputusan user), basis semua pajak
+    const dpp = computeGrossUpDpp(tagList, amount) // DPP = Debet langsung, KECUALI ada tag GU -> gross-up mundur
     const formula = computeTagFormula(tagList, dpp) // formula.ppn ikut keisi, cuma kalau ada tag "PM"
     if (existingPpn) {
       await db.update(ppnRows).set({
