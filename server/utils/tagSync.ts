@@ -9,8 +9,8 @@ import { nextPpnUrutan } from './ppnOrder'
 // sinkron ke satu baris Entertainment — keduanya bisa aktif bareng buat transaksi yang
 // sama. Ganti tag / edit nominal-tanggal-keterangan transaksi otomatis update baris
 // terhubung (dilacak lewat sourceTxnId, gak pernah bikin baris dobel).
-const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM'])
-const ENT_TAG = 'Ent'
+export const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM'])
+export const ENT_TAG = 'Ent'
 
 export function parseTagList(raw: string | null | undefined): string[] {
   return (raw || '').split(',').map(s => s.trim()).filter(Boolean)

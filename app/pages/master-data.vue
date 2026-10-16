@@ -246,6 +246,11 @@ const addTag = () => {
   }, 'Tag ditambahkan.')
 }
 const deleteTag = (id: string) => run(() => api(`/api/master/tags/${id}`, { method: 'DELETE' }), 'Tag dihapus.')
+const renameTag = (t: Tag, nama: string) => {
+  nama = nama.trim()
+  if (!nama || nama === t.nama) return
+  return run(() => api(`/api/master/tags/${t.id}`, { method: 'PATCH', body: { nama } }), 'Tag diperbarui.')
+}
 
 const addPmKategori = () => {
   if (!newPmKategori.value.trim()) return
@@ -496,9 +501,12 @@ const filteredNpwps = computed(() => {
         </div>
         <div v-if="!tags.length" class="empty-state">Belum ada tag.</div>
         <div v-else class="chip-row">
-          <span v-for="t in tags" :key="t.id" class="chip">{{ t.nama }}<span class="chip-del" @click="deleteTag(t.id)">✕</span></span>
+          <span v-for="t in tags" :key="t.id" class="chip">
+            <input type="text" class="chip-edit" :value="t.nama" size="1" @change="renameTag(t, ($event.target as HTMLInputElement).value)" />
+            <span class="chip-del" @click="deleteTag(t.id)">✕</span>
+          </span>
         </div>
-        <p class="hint">Tag "PPH 23", "PP 23", "PPH 4", dan "21 BP" memicu perhitungan otomatis kolom pajak di List Pajak.</p>
+        <p class="hint">Klik nama tag buat edit. Tag "PPH 23", "PP 23", "PPH 4", "21 BP", "Final", "PM", dan "Ent" dipakai logic otomatis sistem (List Pajak/Entertainment) — gak bisa diganti nama.</p>
       </div>
     </div>
 
