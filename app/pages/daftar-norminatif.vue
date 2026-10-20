@@ -59,15 +59,15 @@ function inPeriod(tanggal: string) {
 }
 
 /** Baris cuma masuk Norminatif kalau ditag "Norm" DI Rincian Bank/List Pajak —
- *  tag pajak (PPH 23/21 BP, termasuk versi Gross-Up-nya "PPH 23 GU"/"21 GU") doang
+ *  tag pajak (PPH 23/21 BP, termasuk versi Gross-Up-nya "PPH 23 GU"/"21 BP GU") doang
  *  gak cukup, harus dipasangkan sama "Norm" biar user bisa milih-milih baris pajak
  *  mana yang beneran mau dilaporin di sini. */
 function matchesJenis(r: PpnRow) {
   const list = parseTagList(r.tags)
   if (!list.includes('Norm')) return false
   if (filterJenis.value === 'pph23') return list.includes('PPH 23') || list.includes('PPH 23 GU')
-  if (filterJenis.value === 'pph21bp') return list.includes('21 BP') || list.includes('21 GU')
-  return list.includes('PPH 23') || list.includes('21 BP') || list.includes('PPH 23 GU') || list.includes('21 GU')
+  if (filterJenis.value === 'pph21bp') return list.includes('21 BP') || list.includes('21 BP GU')
+  return list.includes('PPH 23') || list.includes('21 BP') || list.includes('PPH 23 GU') || list.includes('21 BP GU')
 }
 function jumlahPph(r: PpnRow) {
   return (r.pph23 || 0) + (r.pph23_4a2 || 0) + (r.pph21bp || 0)

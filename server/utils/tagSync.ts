@@ -9,7 +9,7 @@ import { nextPpnUrutan } from './ppnOrder'
 // sinkron ke satu baris Entertainment — keduanya bisa aktif bareng buat transaksi yang
 // sama. Ganti tag / edit nominal-tanggal-keterangan transaksi otomatis update baris
 // terhubung (dilacak lewat sourceTxnId, gak pernah bikin baris dobel).
-export const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM', 'PPH 23 GU', 'PP 23 GU', 'FINAL GU', '21 GU'])
+export const PAJAK_TAGS = new Set(['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PM', 'PPH 23 GU', 'PP 23 GU', 'FINAL GU', '21 BP GU'])
 export const ENT_TAG = 'Ent'
 
 export function parseTagList(raw: string | null | undefined): string[] {
@@ -26,7 +26,7 @@ const GU_RATES: [tag: string, rate: number][] = [
   ['PPH 23 GU', 0.02],
   ['PP 23 GU', 0.005],
   ['FINAL GU', 0.10],
-  ['21 GU', 0.025]
+  ['21 BP GU', 0.025]
 ]
 function computeGrossUpDpp(tagList: string[], debet: number): number {
   const d = debet || 0
@@ -48,7 +48,7 @@ function computeTagFormula(tags: string[], dpp: number) {
   if (tags.includes('PPH 23') || tags.includes('PPH 23 GU')) pph23 = Math.round(d * 0.02)
   if (tags.includes('PP 23') || tags.includes('PP 23 GU')) pph23_4a2 = Math.round(d * 0.005)
   if (tags.includes('Final') || tags.includes('PPH 4') || tags.includes('FINAL GU')) pph23_4a2 = Math.round(d * 0.10)
-  if (tags.includes('21 BP') || tags.includes('21 GU')) pph21bp = Math.round(d * 0.025)
+  if (tags.includes('21 BP') || tags.includes('21 BP GU')) pph21bp = Math.round(d * 0.025)
   if (tags.includes('PM')) ppn = Math.round(d * 0.11)
   return { pph23, pph23_4a2, pph21bp, ppn }
 }

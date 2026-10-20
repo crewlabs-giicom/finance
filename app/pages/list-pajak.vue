@@ -92,7 +92,7 @@ function matchesSearch(r: PpnRow) {
 
 // Tag "PM" dikhususkan buat List PM — kalau sendirian (gak dibarengin tag pajak
 // beneran kayak PPH 23/21 BP/dst), baris itu disembunyiin dari List Pajak.
-const REAL_PAJAK_TAGS = ['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PPH 23 GU', 'PP 23 GU', 'FINAL GU', '21 GU']
+const REAL_PAJAK_TAGS = ['PPH 23', 'PP 23', 'PPH 4', '21 BP', 'Final', 'PPH 23 GU', 'PP 23 GU', 'FINAL GU', '21 BP GU']
 function isPmOnly(r: PpnRow) {
   const list = parseTagList(r.tags)
   return list.includes('PM') && !list.some(t => REAL_PAJAK_TAGS.includes(t))
@@ -122,7 +122,7 @@ const GU_RATES: [tag: string, rate: number][] = [
   ['PPH 23 GU', 0.02],
   ['PP 23 GU', 0.005],
   ['FINAL GU', 0.10],
-  ['21 GU', 0.025]
+  ['21 BP GU', 0.025]
 ]
 function computeGrossUpDpp(tagList: string[], debet: number): number {
   const d = debet || 0
@@ -144,7 +144,7 @@ function computeTagFormula(tagList: string[], dpp: number) {
   if (tagList.includes('PPH 23') || tagList.includes('PPH 23 GU')) pph23 = Math.round(d * 0.02)
   if (tagList.includes('PP 23') || tagList.includes('PP 23 GU')) pph23_4a2 = Math.round(d * 0.005)
   if (tagList.includes('Final') || tagList.includes('PPH 4') || tagList.includes('FINAL GU')) pph23_4a2 = Math.round(d * 0.10)
-  if (tagList.includes('21 BP') || tagList.includes('21 GU')) pph21bp = Math.round(d * 0.025)
+  if (tagList.includes('21 BP') || tagList.includes('21 BP GU')) pph21bp = Math.round(d * 0.025)
   if (tagList.includes('PM')) ppn = Math.round(d * 0.11)
   return { pph23, pph23_4a2, pph21bp, ppn }
 }
@@ -533,7 +533,7 @@ function subtotal(list: PpnRow[], key: keyof PpnRow) {
                 <input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)"
                   @change="patchRow(r, { tanggal: ($event.target as HTMLInputElement).value })" />
               </td>
-              <td><input class="cell-input" style="min-width:110px;" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
+              <td><input class="cell-input" style="min-width:120px;" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
               <td><input class="cell-input" :value="r.store" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { store: ($event.target as HTMLInputElement).value })" /></td>
               <td style="min-width:200px;">
                 <textarea
