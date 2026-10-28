@@ -52,6 +52,17 @@ function isTxnFee(transaksi: string | null | undefined): boolean {
   return !!transaksi && /\btxn\b/i.test(transaksi)
 }
 
+/** Khusus rekening BNI: baris "BY TRX BIFAST" (notifikasi transfer BI-FAST dari bank)
+ *  juga selalu nempel di bawah transaksi aslinya di file mutasi, sama kayak "BIAYA TXN"
+ *  di atas — No Bank-nya ikut baris sebelumnya, bukan nomor urut baru. */
+function isBifastNotif(transaksi: string | null | undefined, bankType: string | null | undefined): boolean {
+  return bankType === 'BNI' && !!transaksi && /\bby\s+trx\s+bifast\b/i.test(transaksi)
+}
+
+function shouldInheritPrevNoBank(transaksi: string | null | undefined, bankType: string | null | undefined): boolean {
+  return isTxnFee(transaksi) || isBifastNotif(transaksi, bankType)
+}
+
 /** Generate No Bank buat SATU transaksi (dipakai tambah-manual & patch). */
 export async function generateNoBank(accountId: string, side: 'debet' | 'kredit', tanggal: string): Promise<string | null> {
   const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, accountId)).limit(1)
@@ -71,9 +82,10 @@ export async function generateNoBank(accountId: string, side: 'debet' | 'kredit'
  *  nomor awal, abis itu di-increment di memori buat tiap baris berikutnya di kelompok
  *  yang sama, ngikut urutan baris di file (yang notabene udah kronologis).
  *
- *  Baris yang teksnya ngandung "TXN" (biaya BI-FAST) gak dapet nomor urut baru — dia
- *  nempel ke No Bank baris NYATA terakhir buat rekening itu (bukan baris "TXN" lain),
- *  biar transaksi sama biaya-nya kebaca satu No Bank yang sama. */
+ *  Baris yang teksnya ngandung "TXN" (biaya BI-FAST, semua bank) atau — khusus
+ *  rekening BNI — "BY TRX BIFAST" gak dapet nomor urut baru: dia nempel ke No Bank
+ *  baris NYATA terakhir buat rekening itu (bukan baris inherit lain), biar transaksi
+ *  sama biaya/notifikasinya kebaca satu No Bank yang sama. */
 export async function generateNoBankBatch(
   rows: { accountId: string; debet: number; kredit: number; tanggal: string; transaksi?: string | null }[]
 ): Promise<(string | null)[]> {
@@ -100,7 +112,8 @@ export async function generateNoBankBatch(
   const result: (string | null)[] = []
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!
-    if (isTxnFee(r.transaksi) && lastNoBank.has(r.accountId)) {
+    const bankType = accMap.get(r.accountId)?.bankType
+    if (shouldInheritPrevNoBank(r.transaksi, bankType) && lastNoBank.has(r.accountId)) {
       result.push(lastNoBank.get(r.accountId)!)
       continue // jangan konsumsi nomor urut baru, jangan update lastNoBank -> biaya TXN
                // berantai (kalau ada) tetap nempel ke transaksi aslinya, bukan ke TXN sebelumnya
