@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MONTH_NAMES, defaultPeriod, fmtNum, fmtRp, formatDateShort, lightenColor, parseNum, parseTagList } from '~/utils/format'
+import { MONTH_NAMES, defaultPeriod, fmtNum, fmtRp, lightenColor, parseNum, parseTagList } from '~/utils/format'
 
 /**
  * List PM adalah tampilan turunan dari List Pajak — tidak punya tabel sendiri.
@@ -374,7 +374,10 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
             >
               <td class="no-export"><input type="checkbox" :checked="selectedIds.has(r.id)" @change="multi.toggle(r.id)" /></td>
               <td>{{ i + 1 }}</td>
-              <td>{{ formatDateShort(r.tanggal) }}</td>
+              <td>
+                <input type="date" class="cell-input" :value="r.tanggal" :disabled="isLocked(r.tanggal)"
+                  @change="patchRow(r, { tanggal: ($event.target as HTMLInputElement).value })" />
+              </td>
               <td><input class="cell-input" style="min-width:110px;" :value="r.code" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { code: ($event.target as HTMLInputElement).value })" /></td>
               <td style="min-width:200px;">{{ r.description }}</td>
               <td>
