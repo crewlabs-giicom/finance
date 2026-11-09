@@ -322,10 +322,9 @@ async function onUpload(evt: Event) {
       return
     }
 
-    const seen = new Set(rows.value.map(dupKey))
     const payload: Record<string, unknown>[] = []
     const npwpCache = new Map<string, string | null>()
-    let dup = 0, invalid = 0
+    let invalid = 0
 
     for (let i = header.index + 1; i < sheet.length; i++) {
       const r = sheet[i] || []
@@ -372,16 +371,15 @@ async function onUpload(evt: Event) {
         pph21bp: cellOrAuto(at('pph21bp'), autoFormula.pph21bp),
         note: String(at('note') || '').trim()
       }
-      const key = dupKey(cand as PpnRow)
-      if (seen.has(key)) { dup++; continue }
-      seen.add(key)
       payload.push(cand)
     }
 
     const res = await api<{ inserted: number; skipped: number }>('/api/ppn/bulk', { method: 'POST', body: { rows: payload } })
     await loadAll()
 
-    let msg = `${res.inserted} baris diimpor, ${dup} duplikat dilewati`
+    // Sengaja gak ada cek duplikat di sini -- khusus upload Excel, baris yang "kelihatan
+    // sama" (No Bank/Description/dst sama) tetap boleh keimpor semua, beda dari jalur lain.
+    let msg = `${res.inserted} baris diimpor`
     if (invalid) msg += `, ${invalid} baris tanpa tanggal valid dilewati`
     if (res.skipped) msg += `, ${res.skipped} baris ditolak server (periode terkunci / data kurang)`
     status.value = { type: res.inserted ? 'ok' : 'err', msg: msg + '.' }
@@ -390,13 +388,6 @@ async function onUpload(evt: Event) {
   } finally {
     uploading.value = false
   }
-}
-
-// NPWP & DPP ikut jadi bagian kunci dedup -- banyak baris boleh share No Bank/Description
-// yang sama (1 transaksi bank dipecah ke beberapa NPWP/vendor, lihat template import),
-// jadi gak cukup dibedain dari groupId/tanggal/code/description/debet/kredit doang.
-function dupKey(r: Pick<PpnRow, 'groupId' | 'tanggal' | 'code' | 'description' | 'debet' | 'kredit' | 'npwpId' | 'dpp'>) {
-  return `${r.groupId}|${r.tanggal}|${r.code}|${r.description}|${r.debet}|${r.kredit}|${r.npwpId}|${r.dpp}`
 }
 
 // Kolom angka di tabel (index setelah kolom .no-export dibuang) — dipetakan ke
