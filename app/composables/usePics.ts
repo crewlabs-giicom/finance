@@ -18,5 +18,16 @@ export function usePics() {
     return pics.value.find(p => p.id === id)?.nama || 'Tanpa PIC'
   }
 
-  return { pics, load, nameOf }
+  /** PIC user yang lagi login (null kalau gak punya PIC) — dipakai buat preset filter PIC
+   *  otomatis ke dirinya sendiri waktu dia login, mirror myGroupId() di useGroups.ts. */
+  async function myPicId(): Promise<string | null> {
+    try {
+      const me = await api<{ picId: string | null }>('/api/auth/me')
+      return me.picId || null
+    } catch {
+      return null
+    }
+  }
+
+  return { pics, load, nameOf, myPicId }
 }

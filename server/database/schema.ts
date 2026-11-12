@@ -342,3 +342,29 @@ export const bayarRows = sqliteTable('bayar_rows', {
   payEkspds: text('pay_ekspds').default(''),
   ket: text('ket').default('')
 })
+
+// ---------- Cek UMP ----------
+export const cekUmpRows = sqliteTable('cek_ump_rows', {
+  id: text('id').primaryKey(),
+  tanggal: text('tanggal').notNull(),
+  transaksi: text('transaksi').default(''), // kolom "Transaction" (SALE RETURN/BA ACC/RECEIPT INV/...)
+  code: text('code').default(''),
+  description: text('description'),
+  coaId: text('coa_id').references(() => coaMaster.id),
+  debet: real('debet').notNull().default(0),
+  kredit: real('kredit').notNull().default(0),
+  pt: text('pt').default(''), // apa adanya dari Excel -- cuma informational, BUKAN sumber groupId
+  store: text('store').default(''), // apa adanya dari Excel -- sumber derivasi groupId/picId
+  // groupId & picId DIDERIVE dari `store` saat import (lihat onUpload di app/pages/cek-ump.vue) --
+  // snapshot waktu itu, bukan live-join. Mapping Store berubah belakangan TIDAK bikin baris
+  // lama ikut berubah (konsisten dgn pola groupId di tabel lain).
+  groupId: text('group_id').references(() => bankGroups.id),
+  picId: text('pic_id').references(() => pics.id),
+  tag: text('tag').default(''), // teks bebas, BUKAN terhubung ke tag_master
+  matchNo: integer('match_no') // null = belum match; angka = anggota grup match ke-N
+}, (t) => ({
+  coaIdx: index('cek_ump_rows_coa_idx').on(t.coaId),
+  picIdx: index('cek_ump_rows_pic_idx').on(t.picId),
+  tanggalIdx: index('cek_ump_rows_tanggal_idx').on(t.tanggal),
+  matchNoIdx: index('cek_ump_rows_match_no_idx').on(t.matchNo)
+}))

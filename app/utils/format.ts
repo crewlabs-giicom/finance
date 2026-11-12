@@ -116,6 +116,9 @@ export const MONTH_NAMES = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ]
 
+/** Singkatan 3 huruf, dipakai di filter yang butuh dropdown bulan lebih ringkas (mis. Cek UMP). */
+export const MONTH_NAMES_SHORT = MONTH_NAMES.map(m => m.slice(0, 3))
+
 export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }

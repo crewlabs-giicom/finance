@@ -1,5 +1,5 @@
 import {
-  asetRows, avpRows, coaMaster, dnRows, entRows, mpStores,
+  asetRows, avpRows, cekUmpRows, coaMaster, dnRows, entRows, mpStores,
   npwpMaster, ppnRows, teFinanceRows, teGudangRows
 } from '../database/schema'
 import { defineCrud } from './crud'
@@ -113,5 +113,18 @@ export const crud = {
     idPrefix: 'mps',
     required: ['nama'],
     fields: { groupId: 'ref', nama: 'str', platform: 'str', saldoAwal: 'num' }
+  }),
+
+  // ---------- Cek UMP ----------
+  cekUmp: defineCrud({
+    table: cekUmpRows,
+    idPrefix: 'ump',
+    dateField: 'tanggal',
+    required: ['tanggal'],
+    fields: {
+      tanggal: 'date', transaksi: 'str', code: 'str', description: 'text',
+      coaId: 'ref', debet: 'num', kredit: 'num', pt: 'str', store: 'str',
+      groupId: 'ref', picId: 'ref', tag: 'str', matchNo: 'numOrNull'
+    }
   })
 }

@@ -12,6 +12,7 @@ const navItems = [
   { to: '/entertainment', icon: '🍽️', label: 'Entertainment' },
   { to: '/aktiva-pasiva', icon: '⚖️', label: 'Aktiva - Pasiva' },
   { to: '/daftar-norminatif', icon: '📑', label: 'Daftar Norminatif' },
+  { to: '/cek-ump', icon: '✅', label: 'Cek UMP' },
   { to: '/tagihan-ekspedisi', icon: '🚚', label: 'Tagihan Ekspedisi' },
   { to: '/aset', icon: '🏢', label: 'Aset' },
   { to: '/master-data', icon: '🗂️', label: 'Master Data' }
