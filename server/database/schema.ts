@@ -353,15 +353,20 @@ export const cekUmpRows = sqliteTable('cek_ump_rows', {
   coaId: text('coa_id').references(() => coaMaster.id),
   debet: real('debet').notNull().default(0),
   kredit: real('kredit').notNull().default(0),
-  pt: text('pt').default(''), // apa adanya dari Excel -- cuma informational, BUKAN sumber groupId
-  store: text('store').default(''), // apa adanya dari Excel -- sumber derivasi groupId/picId
-  // groupId & picId DIDERIVE dari `store` saat import (lihat onUpload di app/pages/cek-ump.vue) --
-  // snapshot waktu itu, bukan live-join. Mapping Store berubah belakangan TIDAK bikin baris
-  // lama ikut berubah (konsisten dgn pola groupId di tabel lain).
+  pt: text('pt').default(''), // kode grup dari Excel (mis. "GIM") -- sumber derivasi groupId/picId
+  store: text('store').default(''), // apa adanya dari Excel -- cuma informational
+  // groupId & picId DIDERIVE dari `pt` saat import (dicocokkan ke nama Grup Master Data,
+  // lihat onUpload di app/pages/cek-ump.vue) -- snapshot waktu itu, bukan live-join.
+  // Mapping Grup berubah belakangan TIDAK bikin baris lama ikut berubah (konsisten dgn
+  // pola groupId di tabel lain).
   groupId: text('group_id').references(() => bankGroups.id),
   picId: text('pic_id').references(() => pics.id),
-  tag: text('tag').default(''), // teks bebas, BUKAN terhubung ke tag_master
-  matchNo: integer('match_no') // null = belum match; angka = anggota grup match ke-N
+  tag: text('tag').default(''), // teks bebas, BUKAN terhubung ke tag_master -- gak ditampilkan di UI
+  matchNo: integer('match_no'), // null = belum match; angka = anggota grup match ke-N
+  // Catatan bebas per baris, diisi manual di UI (gak ada di Excel import). Beda dari field
+  // lain, field ini TETAP BISA diedit walau baris udah matched (lihat [id].patch.ts) --
+  // dianggap metadata review, bukan data transaksional yang mempengaruhi validitas match.
+  keterangan: text('keterangan').default('')
 }, (t) => ({
   coaIdx: index('cek_ump_rows_coa_idx').on(t.coaId),
   picIdx: index('cek_ump_rows_pic_idx').on(t.picId),

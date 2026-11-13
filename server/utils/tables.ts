@@ -124,7 +124,7 @@ export const crud = {
     fields: {
       tanggal: 'date', transaksi: 'str', code: 'str', description: 'text',
       coaId: 'ref', debet: 'num', kredit: 'num', pt: 'str', store: 'str',
-      groupId: 'ref', picId: 'ref', tag: 'str', matchNo: 'numOrNull'
+      groupId: 'ref', picId: 'ref', tag: 'str', matchNo: 'numOrNull', keterangan: 'text'
     }
   })
 }

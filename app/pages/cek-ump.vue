@@ -12,14 +12,13 @@ type CekUmpRow = {
   id: string; tanggal: string; transaksi: string | null; code: string | null
   description: string | null; coaId: string | null; debet: number; kredit: number
   pt: string | null; store: string | null; groupId: string | null; picId: string | null
-  tag: string | null; matchNo: number | null
+  tag: string | null; matchNo: number | null; keterangan: string | null
 }
 type Coa = { id: string; noCoa: string; namaCoa: string }
-type Store = { id: string; groupId: string | null; nama: string; platform: string | null; saldoAwal: number }
+type SortKey = 'tanggal' | 'transaksi' | 'code' | 'description' | 'coa' | 'debet' | 'kredit' | 'pt' | 'store' | 'pic' | 'match'
 
 const rows = ref<CekUmpRow[]>([])
 const coas = ref<Coa[]>([])
-const stores = ref<Store[]>([])
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
 const uploading = ref(false)
 
@@ -36,14 +35,16 @@ const filterToYear = ref(defYear)
 const filterPeriodActive = ref(false)
 const filterCoa = ref('')
 const filterPic = ref('')
+const filterTransaksi = ref<string[]>([])
 const filterMatchStatus = ref<'all' | 'matched' | 'unmatched'>('unmatched')
 const filterSearch = ref('')
+const sortKey = ref<SortKey>('tanggal')
+const sortDir = ref<'asc' | 'desc'>('asc')
 
 async function loadAll() {
-  ;[rows.value, coas.value, stores.value] = await Promise.all([
+  ;[rows.value, coas.value] = await Promise.all([
     api<CekUmpRow[]>('/api/cek-ump'),
-    api<Coa[]>('/api/master/coa'),
-    api<Store[]>('/api/mp/stores')
+    api<Coa[]>('/api/master/coa')
   ])
 }
 await Promise.all([loadAll(), loadGroups(), loadPics()])
@@ -57,28 +58,75 @@ function inPeriod(tanggal: string) {
   return ym >= fromYm.value && ym <= toYm.value
 }
 
-const visibleRows = computed(() => rows.value.filter(r =>
-  inPeriod(r.tanggal) &&
-  (!filterCoa.value || r.coaId === filterCoa.value) &&
-  (!filterPic.value || r.picId === filterPic.value) &&
-  (filterMatchStatus.value === 'all' || (filterMatchStatus.value === 'matched' ? r.matchNo !== null : r.matchNo === null)) &&
-  matchesSearch(r)
-))
+/** Daftar jenis Transaction yang beneran ada di data, buat opsi filter multi-select. */
+const transaksiOptions = computed(() =>
+  [...new Set(rows.value.map(r => r.transaksi).filter((t): t is string => !!t))].sort().map(t => ({ value: t, label: t }))
+)
 
 function coaLabel(id: string | null) {
   return coas.value.find(x => x.id === id)?.namaCoa || '-'
 }
 
-/** Cari teks (Transaction/Code/Description/PT/Store/Tag/COA) atau nominal persis di
+/** Cari teks (Transaction/Code/Description/PT/Store/COA) atau nominal persis di
  *  Debet/Kredit -- pola sama kayak search di rincian-bank.vue. */
 function matchesSearch(r: CekUmpRow) {
   const q = filterSearch.value.trim().toLowerCase()
   if (!q) return true
-  if ([r.transaksi, r.code, r.description, r.pt, r.store, r.tag, coaLabel(r.coaId)]
+  if ([r.transaksi, r.code, r.description, r.pt, r.store, coaLabel(r.coaId)]
     .some(v => (v || '').toLowerCase().includes(q))) return true
   const qDigits = q.replace(/[^0-9]/g, '')
   if (qDigits && ((r.debet && String(Math.round(r.debet)).includes(qDigits)) || (r.kredit && String(Math.round(r.kredit)).includes(qDigits)))) return true
   return false
+}
+
+/** Nilai yang dibandingkan buat sort per kolom -- COA/PIC di-sort by LABEL yang
+ *  ditampilkan (bukan raw id, yang urutannya acak gak nyambung sama nama). */
+function sortValue(r: CekUmpRow, key: SortKey): string | number {
+  switch (key) {
+    case 'coa': return coaLabel(r.coaId)
+    case 'pic': return picNameOf(r.picId)
+    case 'debet': return r.debet || 0
+    case 'kredit': return r.kredit || 0
+    case 'match': return r.matchNo ?? -1
+    default: return r[key] || ''
+  }
+}
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  else { sortKey.value = key; sortDir.value = 'asc' }
+}
+function sortIcon(key: SortKey) {
+  if (sortKey.value !== key) return '⇅'
+  return sortDir.value === 'asc' ? '▲' : '▼'
+}
+
+const visibleRows = computed(() => {
+  const filtered = rows.value.filter(r =>
+    inPeriod(r.tanggal) &&
+    (!filterCoa.value || r.coaId === filterCoa.value) &&
+    (!filterPic.value || r.picId === filterPic.value) &&
+    (!filterTransaksi.value.length || filterTransaksi.value.includes(r.transaksi || '')) &&
+    (filterMatchStatus.value === 'all' || (filterMatchStatus.value === 'matched' ? r.matchNo !== null : r.matchNo === null)) &&
+    matchesSearch(r)
+  )
+  const key = sortKey.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filtered].sort((a, b) => {
+    const av = sortValue(a, key)
+    const bv = sortValue(b, key)
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
+    return String(av).localeCompare(String(bv)) * dir
+  })
+})
+
+async function patchRow(r: CekUmpRow, patch: Partial<CekUmpRow>) {
+  try {
+    await api(`/api/cek-ump/${r.id}`, { method: 'PATCH', body: patch })
+    Object.assign(r, patch)
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || 'Gagal update.' }
+    await loadAll()
+  }
 }
 
 // -- checkbox select + submit match --
@@ -211,16 +259,15 @@ async function resolveCoaId(noCoaRaw: string, namaRaw: string, cache: Map<string
   return created.id
 }
 
-/** Store (teks) -> cari di mp_stores by nama (exact match, trim+case-insensitive) -> ambil
- *  groupId -> grup itu punya picId -> itu PIC-nya. Store gak ketemu (termasuk "-") -> null. */
-function resolveGroupAndPic(storeRaw: string): { groupId: string | null; picId: string | null } {
-  const key = storeRaw.trim().toLowerCase()
+/** PT (teks, kode grup kayak "GIM"/"SUM"/"BII") -> cari di Master Data > Grup by nama
+ *  (exact match, trim+case-insensitive) -> grup itu punya picId -> itu PIC-nya. PT gak
+ *  ketemu di master grup -> null. */
+function resolveGroupAndPic(ptRaw: string): { groupId: string | null; picId: string | null } {
+  const key = ptRaw.trim().toLowerCase()
   if (!key) return { groupId: null, picId: null }
-  const store = stores.value.find(s => s.nama.trim().toLowerCase() === key)
-  if (!store) return { groupId: null, picId: null }
-  const groupId = store.groupId || null
-  const picId = groupId ? (groups.value.find(g => g.id === groupId)?.picId || null) : null
-  return { groupId, picId }
+  const group = groups.value.find(g => g.nama.trim().toLowerCase() === key)
+  if (!group) return { groupId: null, picId: null }
+  return { groupId: group.id, picId: group.picId || null }
 }
 
 async function onUpload(evt: Event) {
@@ -257,8 +304,8 @@ async function onUpload(evt: Event) {
       const coaNamaRaw = coaKodeColIdx !== undefined ? String(r[coaKodeColIdx + 1] ?? '') : ''
       const coaId = await resolveCoaId(coaKodeRaw, coaNamaRaw, coaCache)
 
-      const storeRaw = String(at('store') || '').trim()
-      const { groupId, picId } = resolveGroupAndPic(storeRaw)
+      const ptRaw = String(at('pt') || '').trim()
+      const { groupId, picId } = resolveGroupAndPic(ptRaw)
 
       payload.push({
         tanggal,
@@ -268,8 +315,8 @@ async function onUpload(evt: Event) {
         coaId,
         debet: parseSheetNumber(at('debet')),
         kredit: parseSheetNumber(at('kredit')),
-        pt: String(at('pt') || '').trim(),
-        store: storeRaw,
+        pt: ptRaw,
+        store: String(at('store') || '').trim(),
         groupId,
         picId,
         tag: String(at('tag') || '').trim()
@@ -341,6 +388,8 @@ async function onExport() {
         <option value="">Semua PIC</option>
         <option v-for="p in pics" :key="p.id" :value="p.id">{{ p.nama }}</option>
       </select>
+      <span class="gm-label" style="margin-left:10px;">Transaction:</span>
+      <MultiSelectFilter v-model="filterTransaksi" :options="transaksiOptions" placeholder="Semua" />
       <span class="gm-label" style="margin-left:10px;">Match:</span>
       <select v-model="filterMatchStatus">
         <option value="all">Semua</option>
@@ -365,9 +414,18 @@ async function onExport() {
                   @change="multi.toggleAll(unmatchedVisibleIds)"
                 />
               </th>
-              <th>Tanggal</th><th>Transaction</th><th>Code</th><th>Description</th>
-              <th>COA</th><th class="num">Debet</th><th class="num">Kredit</th>
-              <th>PT</th><th>Store</th><th>PIC</th><th>Tag</th><th>Match</th>
+              <th class="sortable" @click="toggleSort('tanggal')">Tanggal <span class="sort-icon">{{ sortIcon('tanggal') }}</span></th>
+              <th class="sortable" @click="toggleSort('transaksi')">Transaction <span class="sort-icon">{{ sortIcon('transaksi') }}</span></th>
+              <th class="sortable" @click="toggleSort('code')">Code <span class="sort-icon">{{ sortIcon('code') }}</span></th>
+              <th class="sortable" @click="toggleSort('description')">Description <span class="sort-icon">{{ sortIcon('description') }}</span></th>
+              <th class="sortable" @click="toggleSort('coa')">COA <span class="sort-icon">{{ sortIcon('coa') }}</span></th>
+              <th class="num sortable" @click="toggleSort('debet')">Debet <span class="sort-icon">{{ sortIcon('debet') }}</span></th>
+              <th class="num sortable" @click="toggleSort('kredit')">Kredit <span class="sort-icon">{{ sortIcon('kredit') }}</span></th>
+              <th class="sortable" @click="toggleSort('pt')">PT <span class="sort-icon">{{ sortIcon('pt') }}</span></th>
+              <th class="sortable" @click="toggleSort('store')">Store <span class="sort-icon">{{ sortIcon('store') }}</span></th>
+              <th class="sortable" @click="toggleSort('pic')">PIC <span class="sort-icon">{{ sortIcon('pic') }}</span></th>
+              <th>Keterangan</th>
+              <th class="sortable" @click="toggleSort('match')">Match <span class="sort-icon">{{ sortIcon('match') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -386,7 +444,12 @@ async function onExport() {
               <td>{{ r.pt }}</td>
               <td>{{ r.store }}</td>
               <td>{{ picNameOf(r.picId) }}</td>
-              <td>{{ r.tag }}</td>
+              <td>
+                <input
+                  class="cell-input" :value="r.keterangan" placeholder="Keterangan..."
+                  @change="patchRow(r, { keterangan: ($event.target as HTMLInputElement).value })"
+                />
+              </td>
               <td>
                 <span v-if="r.matchNo === null" class="pill">-</span>
                 <span v-else class="pill" style="background:var(--green-bg);color:var(--green);">
@@ -406,6 +469,18 @@ async function onExport() {
 .table-wrap {
   max-height: 520px;
   overflow-y: auto;
+}
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  background: var(--accent-light);
+}
+.sort-icon {
+  font-size: 9px;
+  color: var(--muted);
+  margin-left: 2px;
 }
 .wrap-cell {
   max-width: 260px;

@@ -1,0 +1,1 @@
+ALTER TABLE `cek_ump_rows` ADD `keterangan` text DEFAULT '';

@@ -52,7 +52,8 @@ export default defineEventHandler(async (event) => {
       groupId: item.groupId || null,
       picId: item.picId || null,
       tag: String(item.tag ?? ''),
-      matchNo: null
+      matchNo: null,
+      keterangan: '' // bukan dari Excel -- murni diisi manual belakangan di UI
     })
   }
 
