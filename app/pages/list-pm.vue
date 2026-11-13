@@ -38,6 +38,7 @@ const filterToYear = ref(defYear)
 const filterGroup = ref('')
 const filterMasaKredit = ref('')
 const status = ref<{ type: 'ok' | 'err'; msg: string } | null>(null)
+const root = ref<HTMLElement | null>(null)
 
 const fromYm = computed(() => `${filterFromYear.value}-${String(filterFromMonth.value).padStart(2, '0')}`)
 const toYm = computed(() => `${filterToYear.value}-${String(filterToMonth.value).padStart(2, '0')}`)
@@ -53,7 +54,17 @@ async function loadAll() {
 await Promise.all([loadAll(), loadGroups()])
 filterGroup.value = (await myGroupId()) || filterGroup.value
 await loadAll() // re-fetch scoped ke grup default user (baru kesetel di atas)
-watch([filterFromMonth, filterFromYear, filterToMonth, filterToYear, filterGroup], loadAll)
+
+/** Ganti filter periode/grup bikin data (jumlah baris per section) berubah total,
+ *  tapi posisi scroll tiap .table-wrap gak ikut ke-reset -- kalau user kebetulan
+ *  udah scroll ke bawah sebelum ganti filter, tampilannya jadi nyangkut di tengah
+ *  konten baru (keliatan berantakan/ketutupan). Reset ke atas tiap abis refetch. */
+async function resetScroll() {
+  await loadAll()
+  await nextTick()
+  root.value?.querySelectorAll('.table-wrap').forEach(el => { el.scrollTop = 0 })
+}
+watch([filterFromMonth, filterFromYear, filterToMonth, filterToYear, filterGroup], resetScroll)
 
 function inPeriod(tanggal: string) {
   const ym = (tanggal || '').slice(0, 7)
@@ -247,8 +258,8 @@ const COL_NO_NPWP = 4
 const COL_NO_FAKTUR_PAJAK = 6
 const COL_DPP = 8
 const COL_PPN = 9
+const COL_MASA_KREDIT = 10
 
-const root = ref<HTMLElement | null>(null)
 async function onExport() {
   const tables = Array.from(root.value?.querySelectorAll<HTMLTableElement>('table[data-sheet]') || [])
   if (!tables.length) { status.value = { type: 'err', msg: 'Belum ada tabel untuk diexport.' }; return }
@@ -267,11 +278,16 @@ async function onExport() {
     },
     // No. NPWP & No Faktur Pajak dipaksa jadi teks eksplisit — gampang ke-tebak
     // table_to_sheet sebagai angka/tanggal padahal harus tetap teks apa adanya.
+    // Masa Kredit JUGA wajib textCell: selnya berisi 2 <select> (bulan+tahun) yang
+    // pas di-export ke-replace jadi 2 text node tanpa pemisah (mis. "01"+"26" ->
+    // "0126") -- gabungan mentah itu ke-tebak table_to_sheet sebagai tanggal/angka
+    // dan keluar jadi nilai ngaco (mis. "-23"), bukan dibiarin apa adanya kayak teks.
     textCell: (rowIdx: number, colIdx: number) => {
       const r = sectionsList[ti]?.rows[rowIdx]
       if (!r) return null
       if (colIdx === COL_NO_NPWP) return npwpOf(r.npwpId)?.noNpwp || null
       if (colIdx === COL_NO_FAKTUR_PAJAK) return r.noInvoice || null
+      if (colIdx === COL_MASA_KREDIT) return masaKreditLabel(r.masaKredit) || '-'
       return null
     }
   })), 'List_PM')
