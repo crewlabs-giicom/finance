@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { MONTH_NAMES, defaultPeriod, fmtNum, fmtRp, lightenColor, parseNum, parseTagList } from '~/utils/format'
+import { findHeaderRow, parseSheetDate, parseSheetNumber } from '~/utils/sheetImport'
 
 /**
  * List PM adalah tampilan turunan dari List Pajak — tidak punya tabel sendiri.
@@ -11,7 +12,7 @@ import { MONTH_NAMES, defaultPeriod, fmtNum, fmtRp, lightenColor, parseNum, pars
 const api = useApi()
 const { sections, load: loadGroups, myGroupId } = useGroups()
 const { isLocked, refresh: refreshLock, label: lockLabel, lockYm } = usePeriodLock()
-const { exportTablesColored } = useXlsx()
+const { readFileRows, exportTablesColored } = useXlsx()
 const rowColors = useRowColors('ppn')
 
 type PpnRow = {
@@ -210,6 +211,184 @@ async function duplicateRow(id: string) {
   }
 }
 
+// -- import Excel --
+// Alias 'tanggal' SENGAJA cuma ['TANGGAL BANK', 'DATE'] (gak ada 'TANGGAL' generik)
+// -- biar gak ada risiko collide sama kolom "Tanggal FP" terlepas dari urutan kolom
+// file Excel-nya (detectHeaderMap matching-nya longgar substring, field yang
+// diproses duluan menang -- safer kalau alias-nya spesifik dari awal).
+// Field "ketStatus" SENGAJA gak didaftarin alias -- kolomnya dicari manual lewat
+// findKetStatusCol() di bawah, karena List PM punya 2 kolom "Keterangan" (description
+// di depan, status di belakang) yang bakal collide kalau didaftar sama-sama.
+const HEADERS = {
+  tanggal: ['TANGGAL BANK', 'DATE'],
+  code: ['CODE', 'KODE', 'NO BANK'],
+  description: ['DESCRIPTION', 'DESKRIPSI', 'KETERANGAN'],
+  noNpwp: ['NO. NPWP', 'NO NPWP', 'NOMOR NPWP'],
+  noInvoice: ['NO INVOICE', 'NO. INVOICE', 'NO FAKTUR', 'NO FAKTUR PAJAK'],
+  tanggalFp: ['TANGGAL FP', 'TGL FP'],
+  dpp: ['DPP'],
+  ppn: ['PPN'],
+  masaKredit: ['MASA KREDIT']
+}
+
+/** Cari kolom "Keterangan" status -- kolom TERAKHIR yang teksnya "Keterangan" TAPI
+ *  BUKAN index yang udah diklaim description. Ambil yang PALING KANAN (robust walau
+ *  Masa Kredit gak ada di file, gak gantung ke kolom anchor tertentu). Gak ketemu
+ *  (cuma 1 "Keterangan") -> undefined -> default "Uncredited" dipakai semua baris. */
+function findKetStatusCol(headerRow: unknown[], descColIdx: number | undefined): number | undefined {
+  const norm = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase()
+  let last: number | undefined
+  headerRow.forEach((cell, i) => {
+    if (i === descColIdx) return
+    const h = norm(cell)
+    if (h.includes('KETERANGAN')) last = i
+  })
+  return last
+}
+
+function parseMasaKredit(raw: unknown): string {
+  const s = String(raw ?? '').trim()
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(s) ? s : ''
+}
+
+/** Kunci duplikasi: No Faktur Pajak dipakai duluan kalau diisi (identifier dokumen
+ *  resmi, lebih andal dibanding DPP/PPN yang bisa kebetulan sama di baris beda).
+ *  Kosong -> fallback ke tanggal+NoBank+Keterangan+DPP+PPN+No.NPWP. Pakai NOMOR NPWP
+ *  MENTAH (bukan npwpId hasil resolve) biar dupKey bisa dihitung SEBELUM resolve ke
+ *  Master Data -- baris yang ke-skip duplikat gak bikin NPWP master baru sia-sia. */
+function dupKey(o: { tanggal: string; code: string; description: string; dpp: number; ppn: number; noInvoice: string; noNpwp: string }): string {
+  const inv = o.noInvoice.trim().toLowerCase()
+  if (inv) return `inv:${inv}`
+  return ['row', o.tanggal, o.code.trim().toLowerCase(), o.description.trim().toLowerCase(), o.dpp || 0, o.ppn || 0, o.noNpwp.trim().toLowerCase()].join('|')
+}
+
+/** Sama persis pola resolveNpwpId di list-pajak.vue. */
+async function resolveNpwpId(noNpwpRaw: string, namaRaw: string, cache: Map<string, string | null>): Promise<string | null> {
+  const noNpwp = noNpwpRaw.trim()
+  if (!noNpwp) return null
+  const key = noNpwp.toLowerCase()
+  if (cache.has(key)) return cache.get(key)!
+  const existing = npwps.value.find(n => n.noNpwp.trim().toLowerCase() === key)
+  if (existing) { cache.set(key, existing.id); return existing.id }
+  const created = await api<Npwp>('/api/master/npwp', { method: 'POST', body: { noNpwp, namaNpwp: namaRaw.trim() || noNpwp } })
+  npwps.value.push(created)
+  cache.set(key, created.id)
+  return created.id
+}
+
+const uploading = ref(false)
+const uploadGroup = ref('')
+async function onUpload(evt: Event) {
+  const input = evt.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  uploading.value = true
+  try {
+    const sheet = await readFileRows(file, HEADERS, 3)
+    const header = findHeaderRow(sheet, HEADERS, 3)
+    if (!header) {
+      status.value = { type: 'err', msg: 'Header kolom tidak ketemu. File butuh minimal kolom Tanggal Bank, No Bank, Keterangan.' }
+      return
+    }
+    const ketStatusCol = findKetStatusCol(sheet[header.index] || [], header.map['description'])
+
+    // PENTING: dedup WAJIB dibandingkan terhadap SEMUA baris List PM yang ada di
+    // database -- BUKAN `rows.value` (itu udah kefilter periode yang lagi aktif di
+    // UI, jadi kalau user lagi liat November tapi file isinya data Oktober yang
+    // udah ada, duplikat gak akan ketahuan kalau pakai rows.value). Fetch ulang
+    // tanpa query from/to supaya balikin semua data.
+    const allRows = await api<PpnRow[]>('/api/ppn')
+    const existingKeys = new Set(
+      allRows.filter(matchesTag).map(r => dupKey({
+        tanggal: r.tanggal, code: r.code || '', description: r.description || '',
+        dpp: r.dpp || 0, ppn: r.ppn || 0, noInvoice: r.noInvoice || '',
+        noNpwp: npwpOf(r.npwpId)?.noNpwp || ''
+      }))
+    )
+
+    const payload: Record<string, unknown>[] = []
+    const npwpCache = new Map<string, string | null>()
+    let invalid = 0
+    let duplicate = 0
+
+    for (let i = header.index + 1; i < sheet.length; i++) {
+      const r = sheet[i] || []
+      const at = (f: string) => header.map[f] === undefined ? '' : r[header.map[f]!]
+      const tanggal = parseSheetDate(at('tanggal'))
+      if (!tanggal) { invalid++; continue }
+
+      const code = String(at('code') || '').trim()
+      const description = String(at('description') || '').trim()
+      const noNpwpRaw = String(at('noNpwp') || '').trim()
+      const noNpwpColIdx = header.map['noNpwp']
+      const npwpNamaRaw = noNpwpColIdx !== undefined ? String(r[noNpwpColIdx + 1] ?? '') : ''
+      const noInvoice = String(at('noInvoice') || '').trim()
+
+      const hasCell = (v: unknown) => v !== '' && v !== undefined && v !== null
+      const dpp = parseSheetNumber(at('dpp'))
+      const ppnCell = at('ppn')
+      const ppn = hasCell(ppnCell) ? parseSheetNumber(ppnCell) : Math.round(dpp * 0.11)
+
+      const key = dupKey({ tanggal, code, description, dpp, ppn, noInvoice, noNpwp: noNpwpRaw })
+      if (existingKeys.has(key)) { duplicate++; continue }
+      existingKeys.add(key)
+
+      const npwpId = await resolveNpwpId(noNpwpRaw, npwpNamaRaw, npwpCache)
+      const ketStatusRaw = ketStatusCol !== undefined ? String(r[ketStatusCol] ?? '').trim() : ''
+
+      payload.push({
+        groupId: uploadGroup.value || null,
+        tanggal,
+        code,
+        description,
+        tags: 'PM',
+        npwpId,
+        noInvoice,
+        tanggalFp: parseSheetDate(at('tanggalFp')),
+        dpp,
+        ppn,
+        masaKredit: parseMasaKredit(at('masaKredit')),
+        ketStatus: ketStatusRaw || 'Uncredited',
+        ketKategori: ''
+      })
+    }
+
+    if (!payload.length) {
+      status.value = { type: 'err', msg: `Tidak ada baris yang bisa diimpor${duplicate ? ` (${duplicate} baris duplikat dilewati)` : ''}.` }
+      return
+    }
+
+    // Warning SEBELUM kirim ke server kalau ada baris di periode terkunci --
+    // server (crud.ppn.bulkCreate) udah otomatis skip baris itu, tapi user perlu
+    // tau DI MUKA, bukan cuma lewat pesan status setelah proses selesai.
+    const lockedCount = payload.filter(p => isLocked(p.tanggal as string)).length
+    if (lockedCount > 0) {
+      const proceed = confirm(
+        `${lockedCount} dari ${payload.length} baris ada di periode terkunci (sampai ${lockLabel.value}) dan TIDAK akan diimpor.\n\nLanjut import ${payload.length - lockedCount} baris sisanya?`
+      )
+      if (!proceed) {
+        status.value = { type: 'err', msg: 'Import dibatalkan.' }
+        return
+      }
+    }
+
+    const res = await api<{ inserted: number; skipped: number }>('/api/ppn/bulk', { method: 'POST', body: { rows: payload } })
+    await loadAll()
+
+    let msg = `${res.inserted} baris diimpor`
+    if (duplicate) msg += `, ${duplicate} baris duplikat dilewati`
+    if (invalid) msg += `, ${invalid} baris tanpa tanggal valid dilewati`
+    if (res.skipped) msg += `, ${res.skipped} baris ditolak server (periode terkunci / data kurang)`
+    status.value = { type: res.inserted ? 'ok' : 'err', msg: msg + '.' }
+  } catch (e: any) {
+    status.value = { type: 'err', msg: e?.data?.statusMessage || e?.message || 'Gagal baca file Excel.' }
+  } finally {
+    uploading.value = false
+  }
+}
+
 // -- update Masa Kredit rame-rame buat baris yang lagi dicentang --
 const bulkMasaKreditMonth = ref('')
 const bulkMasaKreditYear = ref(String(today.getFullYear()))
@@ -310,6 +489,15 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
 
     <div class="panel no-export">
       <div class="upload-box">
+        <span class="gm-label">Upload ke Grup:</span>
+        <select v-model="uploadGroup">
+          <option value="">Tanpa Grup</option>
+          <option v-for="s in sections.filter(x => x.id)" :key="s.id!" :value="s.id!">{{ s.nama }}</option>
+        </select>
+        <label class="btn" :class="{ disabled: uploading }" style="cursor:pointer;">
+          {{ uploading ? '⏳ Memproses…' : '📤 Upload Excel' }}
+          <input type="file" accept=".xlsx,.xls" style="display:none;" :disabled="uploading" @change="onUpload" />
+        </label>
         <button class="btn secondary" @click="onExport">📥 Export Excel</button>
         <div v-if="lockYm" class="lock-banner no-export" style="margin:0 0 0 auto;">
           🔒 Periode terkunci sampai <strong>{{ lockLabel }}</strong>.
@@ -379,7 +567,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               <th>No. NPWP</th><th>Nama Penerbit</th>
               <th>No Faktur Pajak</th><th>Tanggal FP</th>
               <th class="num">DPP</th><th class="num">PPN</th>
-              <th>Masa Kredit</th><th>Keterangan</th>
+              <th>Masa Kredit</th><th class="col-sticky">Keterangan</th>
             </tr>
           </thead>
           <tbody>
@@ -430,7 +618,7 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
                   </select>
                 </div>
               </td>
-              <td>
+              <td class="col-sticky" :style="rowColors.colorOf(r.id) ? `background:${rowColors.colorOf(r.id)}` : ''">
                 <select :value="ketDisplay(r)" :disabled="isLocked(r.tanggal)" @change="patchRow(r, { ketStatus: ($event.target as HTMLSelectElement).value, ketKategori: '' })">
                   <option value="Uncredited">Uncredited</option>
                   <option v-for="k in pmKategoris" :key="k.id" :value="k.nama">{{ k.nama }}</option>
@@ -438,11 +626,11 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
               </td>
             </tr>
             <tr class="grand-total-row">
-              <td colspan="8" style="text-align:right;">TOTAL</td>
+              <td colspan="9" style="text-align:right;">TOTAL</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'dpp')) }}</td>
               <td class="num">{{ fmtRp(subtotal(sec.rows, 'ppn')) }}</td>
               <td></td>
-              <td></td>
+              <td class="col-sticky"></td>
             </tr>
           </tbody>
         </table>
@@ -479,5 +667,25 @@ function subtotal(list: PpnRow[], key: 'dpp' | 'ppn') {
 
 .table-wrap table.dense thead th {
   background: var(--group-thead-bg, var(--accent-light));
+}
+
+.table-wrap table.dense thead th.col-sticky {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+}
+.table-wrap table.dense tbody td.col-sticky {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--card);
+  box-shadow: -2px 0 4px -2px rgba(0, 0, 0, .15);
+}
+/* .grand-total-row td punya specificity (0,0,2,0) -- LEBIH RENDAH dari selector
+   td.col-sticky di atas (0,0,3,3), jadi tanpa override khusus ini, td terakhir di
+   baris Total bakal keputihan (var(--card)) bukan ikut warna accent-light baris
+   Total lainnya. Selector ini sengaja dibikin lebih spesifik lagi biar menang. */
+.table-wrap table.dense tbody tr.grand-total-row td.col-sticky {
+  background: var(--accent-light);
 }
 </style>

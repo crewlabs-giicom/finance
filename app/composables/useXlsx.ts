@@ -25,6 +25,30 @@ export function useXlsx() {
     return `${hex(m[1]!)}${hex(m[2]!)}${hex(m[3]!)}`
   }
 
+  /** Baca value yang lagi kepilih user dari ELEMEN ASLI (bukan clone) SEBELUM tabel
+   *  di-clone -- cloneNode(true) cuma nyalin atribut HTML statis, property JS yang
+   *  di-set Vue secara dinamis (.value pada input/textarea, .selected pada option di
+   *  dalam select) gak ikut ke-copy, jadi kalau dibaca dari clone hasilnya selalu
+   *  balik ke default/awal, bukan pilihan user saat ini. Filter .closest('.no-export')
+   *  biar urutan hasilnya PAS sama urutan di clone SETELAH .no-export dihapus. */
+  function readLiveFormValues(table: HTMLTableElement): string[] {
+    return Array.from(table.querySelectorAll('input, select, textarea'))
+      .filter(el => !el.closest('.no-export'))
+      .map(el => el instanceof HTMLSelectElement
+        ? (el.selectedOptions[0]?.textContent || '')
+        : (el as HTMLInputElement | HTMLTextAreaElement).value)
+  }
+
+  /** Ganti tiap input/select/textarea di CLONE jadi teks biasa -- pakai value yang
+   *  udah dibaca dari tabel ASLI lewat readLiveFormValues() (bukan baca ulang dari
+   *  clone yang udah kehilangan property runtime-nya). Panggil SETELAH .no-export
+   *  dihapus dari clone, biar urutannya align sama array values. */
+  function replaceFormElsWithText(clone: HTMLTableElement, values: string[]) {
+    clone.querySelectorAll('input, select, textarea').forEach((el, i) => {
+      el.replaceWith(document.createTextNode(values[i] ?? ''))
+    })
+  }
+
   /**
    * Baca file upload jadi array-of-arrays (baris mentah, tanpa asumsi header).
    *
@@ -57,15 +81,11 @@ export function useXlsx() {
   /** Export satu tabel HTML ke .xlsx. Kolom aksi (kelas .no-export) dibuang dulu. */
   async function exportTable(table: HTMLTableElement, filenamePrefix: string, sheetName = 'Sheet1') {
     const XLSX = await lib()
+    const liveValues = readLiveFormValues(table)
     const clone = table.cloneNode(true) as HTMLTableElement
     clone.querySelectorAll('.no-export').forEach(el => el.remove())
     // Input/select tidak terbaca sheet_to_json — nilainya ditulis balik jadi teks.
-    clone.querySelectorAll('input, select, textarea').forEach((el) => {
-      const v = el instanceof HTMLSelectElement
-        ? (el.selectedOptions[0]?.textContent || '')
-        : (el as HTMLInputElement).value
-      el.replaceWith(document.createTextNode(v))
-    })
+    replaceFormElsWithText(clone, liveValues)
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(clone), sheetName.slice(0, 31))
@@ -78,14 +98,10 @@ export function useXlsx() {
     const wb = XLSX.utils.book_new()
     const used = new Set<string>()
     for (const { table, sheetName } of items) {
+      const liveValues = readLiveFormValues(table)
       const clone = table.cloneNode(true) as HTMLTableElement
       clone.querySelectorAll('.no-export').forEach(el => el.remove())
-      clone.querySelectorAll('input, select, textarea').forEach((el) => {
-        const v = el instanceof HTMLSelectElement
-          ? (el.selectedOptions[0]?.textContent || '')
-          : (el as HTMLInputElement).value
-        el.replaceWith(document.createTextNode(v))
-      })
+      replaceFormElsWithText(clone, liveValues)
       // Nama sheet Excel maksimal 31 karakter dan harus unik.
       let name = sheetName.replace(/[\\/?*[\]:]/g, '-').slice(0, 31) || 'Sheet'
       let n = 2
@@ -144,15 +160,11 @@ export function useXlsx() {
           .map(cell => cssColorToArgb(getComputedStyle(cell as HTMLElement).backgroundColor) || rowArgb)
       })
       const headerRowCount = table.querySelectorAll('thead tr').length || 1
+      const liveValues = readLiveFormValues(table)
 
       const clone = table.cloneNode(true) as HTMLTableElement
       clone.querySelectorAll('.no-export').forEach(el => el.remove())
-      clone.querySelectorAll('input, select, textarea').forEach((el) => {
-        const v = el instanceof HTMLSelectElement
-          ? (el.selectedOptions[0]?.textContent || '')
-          : (el as HTMLInputElement).value
-        el.replaceWith(document.createTextNode(v))
-      })
+      replaceFormElsWithText(clone, liveValues)
       const ws = XLSX.utils.table_to_sheet(clone)
       const cloneRows = Array.from(clone.querySelectorAll('tr'))
       cloneRows.forEach((tr, r) => {
